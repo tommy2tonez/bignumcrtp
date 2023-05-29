@@ -1,3 +1,3 @@
 # bignumcrtp
-header-only
+header-only:
 g++ test.cpp -O3 -std=c++17
