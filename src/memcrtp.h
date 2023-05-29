@@ -63,20 +63,28 @@ namespace memory{
 
             private:
 
-                static inline std::shared_ptr<Allocatable<T>> instance = nullptr;
+                static inline Allocatable<T> * instance = nullptr;
 
             public:
 
-                static std::shared_ptr<Allocatable<T>> get(){
+                static Allocatable<T> * get(){
                     
                     if (AllocatorSingleton<T>::instance == nullptr){
                         
-                        AllocatorSingleton<T>::instance = std::make_shared<T>();
+                        AllocatorSingleton<T>::instance = new T();
                         
                     }
 
                     return AllocatorSingleton<T>::instance;
 
+                }
+
+                static void destruct(){
+                    
+                    delete AllocatorSingleton<T>::instance; 
+
+                    AllocatorSingleton<T>::instance = nullptr;
+                    
                 }
 
         };
@@ -938,12 +946,14 @@ namespace memory::linear{
             }
 
             void * malloc(size_t n){
-
+                
                 return this->allocator.get(n); 
 
             }
 
-            void free(void *){}
+            void free(void * ptr){
+
+            }
 
     };
 
@@ -992,6 +1002,71 @@ namespace memory::linear{
 
     };
 
+    class StdAllocator: public Allocatable<StdAllocator>{
+
+        public:
+
+            inline constexpr void * malloc(size_t n) const noexcept{
+
+                return std::malloc(n);
+            
+            }
+
+            inline constexpr void free(void * ptr) const noexcept{
+
+                std::free(ptr);
+
+            }
+
+    };
+
+    class CircularAllocator: public Allocatable<CircularAllocator>{
+
+        private:
+
+            void * buf;
+            size_t n;
+            size_t offset;
+        
+        public:
+
+            CircularAllocator(size_t n){
+
+                this->buf = std::malloc(n);
+                this->n = n;
+
+            }
+            CircularAllocator(const CircularAllocator&) = delete;
+            CircularAllocator(CircularAllocator&& obj) = delete;
+            CircularAllocator& operator = (const CircularAllocator&) = delete;
+            CircularAllocator& operator = (CircularAllocator&&) = delete;
+           
+            ~CircularAllocator(){
+
+                std::free(this->buf);
+
+            }
+
+            void * malloc(size_t buf_sz){
+                
+                assert(buf_sz <= this->n);
+
+                if (this->offset + buf_sz <= this->n){
+
+                    this->offset += buf_sz;
+                    return (char *) this->buf + (this->offset - buf_sz); 
+                
+                }
+
+                this->offset = 0;
+                return this->malloc(buf_sz);
+
+            }
+    
+            void free(void*){};
+
+    };
+
 }
 
 namespace memory::pointer{
@@ -1037,30 +1112,6 @@ namespace memory::pointer{
 
             void free(void *){}
 
-    };
-
-    class StdAllocator: public memory::linear::AlignedAllocatable<StdAllocator>{
-
-        public:
-
-            void * malloc(size_t n){
-
-               return std::malloc(n);
-
-            }
-
-            void * malloc(size_t n, size_t align_n){
-                
-                return std::malloc(n);
-
-            }
-
-            void free(void * ptr){
-
-                std::free(ptr);
-
-            }
-            
     };
 
     template <class T, class T1>
@@ -1303,7 +1354,7 @@ namespace memory::pointer{
         using namespace memory::linear;
 
         auto obj = AllocatorSingleton<ThreadSafeStackAllocator>::get();
-        auto casted = std::static_pointer_cast<ThreadSafeStackAllocator>(obj);
+        auto casted = static_cast<ThreadSafeStackAllocator *>(obj);
         void * plm_space = casted->malloc(sizeof(T), alignof(T));
         T * rs = new (plm_space) T(std::forward<Args>(args)...);
                 
@@ -1317,7 +1368,7 @@ namespace memory::pointer{
         using namespace memory::linear;
 
         auto obj = AllocatorSingleton<ThreadSafeStackAllocator>::get();
-        auto casted = std::static_pointer_cast<ThreadSafeStackAllocator>(obj);
+        auto casted = static_cast<ThreadSafeStackAllocator *>(obj);
         void * plm_space = casted->malloc(sizeof(T1), alignof(T1));
         T1 * rs = new (plm_space) T1(std::move(derived));
         
@@ -1346,12 +1397,6 @@ namespace dgstd{
 
     }
 
-    template <class T, class T1>
-    inline static stack_shared_ptr<T> stack_make_shared_from_shared_ptr(std::shared_ptr<T> data, T1 derived){
-
-        return memory::pointer::stack_make_shared_from_shared_ptr(data, derived);
-        
-    }
 
 };
 
@@ -1680,17 +1725,18 @@ namespace memory::sizet_linear{
 
     };
 
+    template <class T>
     class StandardMemControlledVectorOperator: public StandardVectorOperator{
 
         public:
 
             StandardMemControlledVectorOperator(): StandardVectorOperator(nullptr, 0){}
             
-            StandardMemControlledVectorOperator(size_t sz): StandardVectorOperator((size_t *) std::malloc(sz * sizeof(size_t)), sz){}
+            StandardMemControlledVectorOperator(size_t sz): StandardVectorOperator((size_t *) memory::linear::AllocatorSingleton<T>().get()->malloc(sz * sizeof(size_t)), sz){}
                         
             StandardMemControlledVectorOperator(StandardMemControlledVectorOperator&& mv): StandardVectorOperator(std::forward<StandardVectorOperator>(mv)){};
             
-            StandardMemControlledVectorOperator(StandardMemControlledVectorOperator& obj): StandardVectorOperator((size_t *) std::malloc(obj.length() * sizeof(size_t)), obj.length()){
+            StandardMemControlledVectorOperator(StandardMemControlledVectorOperator& obj): StandardVectorOperator((size_t *) memory::linear::AllocatorSingleton<T>().get()->malloc(obj.length() * sizeof(size_t)), obj.length()){
 
                 std::memcpy(this->data, obj.data, obj.length() * sizeof(size_t));
 
@@ -1698,7 +1744,7 @@ namespace memory::sizet_linear{
 
             StandardMemControlledVectorOperator& operator =(StandardMemControlledVectorOperator&& obj){
                 
-                std::free(this->data);
+                memory::linear::AllocatorSingleton<T>().get()->free(this->data);
                 StandardVectorOperator::operator=(std::move(obj));
 
                 return *this;
@@ -1715,62 +1761,25 @@ namespace memory::sizet_linear{
 
             ~StandardMemControlledVectorOperator(){
 
-                std::free(this->data);
+                memory::linear::AllocatorSingleton<T>().get()->free(this->data);
 
             }
 
 
     };
 
-    class StandardMemControlledDefaultInitVectorOperator: public StandardMemControlledVectorOperator{
-
-        private:
-
-            inline static const uint8_t DEFAULT_VAL = 0;
-
-        public:
-
-            StandardMemControlledDefaultInitVectorOperator() = default;
-
-            StandardMemControlledDefaultInitVectorOperator(size_t sz): StandardMemControlledVectorOperator(sz){
-
-                std::memset(this->data, DEFAULT_VAL, sz * sizeof(size_t));
-
-            }
-
-            StandardMemControlledDefaultInitVectorOperator(StandardMemControlledDefaultInitVectorOperator& obj): StandardMemControlledVectorOperator(obj){}
-
-            StandardMemControlledDefaultInitVectorOperator(StandardMemControlledDefaultInitVectorOperator&& obj): StandardMemControlledVectorOperator(std::move(obj)){}
-
-            StandardMemControlledDefaultInitVectorOperator& operator = (StandardMemControlledDefaultInitVectorOperator& obj){
-
-                StandardMemControlledVectorOperator::operator=(obj);
-
-                return *this;
-
-            }   
-            
-            StandardMemControlledDefaultInitVectorOperator& operator = (StandardMemControlledDefaultInitVectorOperator&& obj){
-
-                StandardMemControlledVectorOperator::operator=(std::move(obj));
-
-                return *this;
-
-            }   
-
-    };
-
-    class StandardReallocatableMemControlledVectorOperator: public StandardMemControlledVectorOperator, public ReallocatableOperatableVector<StandardReallocatableMemControlledVectorOperator>{
+    template <class T>
+    class StandardReallocatableMemControlledVectorOperator: public StandardMemControlledVectorOperator<T>, public ReallocatableOperatableVector<StandardReallocatableMemControlledVectorOperator<T>>{
 
         public:
 
             StandardReallocatableMemControlledVectorOperator() = default;
 
-            StandardReallocatableMemControlledVectorOperator(size_t sz): StandardMemControlledVectorOperator(sz){}
+            StandardReallocatableMemControlledVectorOperator(size_t sz): StandardMemControlledVectorOperator<T>(sz){}
 
             void resize(size_t sz){
                                 
-                StandardMemControlledVectorOperator new_data(sz);
+                StandardMemControlledVectorOperator<T> new_data(sz);
                 size_t cp_length = std::min(sz, this->length()); 
                 
                 for (size_t i = 0; i < cp_length; ++i){
@@ -1779,24 +1788,24 @@ namespace memory::sizet_linear{
 
                 }
                 
-                StandardMemControlledVectorOperator::operator=(std::move(new_data));
+                StandardMemControlledVectorOperator<T>::operator=(std::move(new_data));
 
             }
 
             void resize_no_copy(size_t sz){
 
-                StandardMemControlledVectorOperator new_data(sz);
-                StandardMemControlledVectorOperator::operator=(std::move(new_data));
+                StandardMemControlledVectorOperator<T> new_data(sz);
+                StandardMemControlledVectorOperator<T>::operator=(std::move(new_data));
 
             }
 
-            using StandardMemControlledVectorOperator::get;
-            using StandardMemControlledVectorOperator::get_data;
-            using StandardMemControlledVectorOperator::length;
-            using StandardMemControlledVectorOperator::sizeof_slot;
-            using StandardMemControlledVectorOperator::set;
-            using StandardMemControlledVectorOperator::to_operatable_vector;
-            using StandardMemControlledVectorOperator::to_vector_readable;
+            using StandardMemControlledVectorOperator<T>::get;
+            using StandardMemControlledVectorOperator<T>::get_data;
+            using StandardMemControlledVectorOperator<T>::length;
+            using StandardMemControlledVectorOperator<T>::sizeof_slot;
+            using StandardMemControlledVectorOperator<T>::set;
+            using StandardMemControlledVectorOperator<T>::to_operatable_vector;
+            using StandardMemControlledVectorOperator<T>::to_vector_readable;
 
     };
 

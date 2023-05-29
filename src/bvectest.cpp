@@ -82,54 +82,27 @@ int main(){
     size_t n = 0;
     ResourceInitiator(1);
 
-    // StandardMutableBigNum a("0b1000000001");
-    // StandardMutableBigNum b("0b101010110");
-    // // std::cout << "rs parsing" <<
-    // StandardMutableBigNum rs("0b1000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
-    
-    // auto c = a << b;
-
-    // for (size_t i = 0; i < rs.length(); ++i){
-
-    //     std::cout << rs.get(i) << std::endl;
-
-    // }
-
-
-    // std::cout << c.length() << " " << rs.length() << std::endl;
-    // std::cout << (c.to_string() == rs.to_string()) << std::endl;
-    // std::cout << c.get_data() << " " << rs.get_data() << std::endl;
-
-    // for (size_t i = 0; i < c.length(); ++i){
-        
-    //     std::cout << c.get(i) << " " << rs.get(i) << std::endl;
-        
-    //     assert(((size_t *)c.get_data())[i] == ((size_t *) rs.get_data())[i]);
-
-    // }
-
-    // auto mutable_ops = bignum::vector::mutable_operation::StandardArithmeticOperatorGenerator().get_plus();
+    dgstd::BigUINT inc(1);
 
     while (true){
         
+        dgstd::BigUINT num(1000);
+
         std::cout << "enter n: ";
         std::cin >> n;
-
-        StandardMutableBigNum num(1);
-        StandardMutableBigNum inc(1);
 
         auto start = steady_clock().now();
         
         for (size_t i =  1; i < n; ++i){
 
-            num += inc;
+            num -= inc;
+            std::cout << num.to_string() << std::endl;
 
         }
-
-        std::cout << num.to_string() << std::endl;
+        
         auto lapsed = duration_cast<milliseconds>(steady_clock().now() - start).count();
-        std::cout << lapsed << std::endl;
-
+        std::cout << lapsed << "----" << std::endl;
+        
     }
     
     ResourceDestructor();

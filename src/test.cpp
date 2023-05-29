@@ -59,62 +59,62 @@ std::vector<std::string> delim(char * buffer, size_t size, char delimiter){
 
 bool test_plus(std::string lhs, std::string rhs, std::string rs){
 
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) + bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) + dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_minus(std::string lhs, std::string rhs, std::string rs){
 
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) - bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) - dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_mul(std::string lhs, std::string rhs, std::string rs){
     
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) * bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) * dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_div(std::string lhs, std::string rhs, std::string rs){
 
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) / bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) / dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
  
 } 
 
 bool test_and(std::string lhs, std::string rhs, std::string rs){
 
-    return (bignum::integer::usgn::StandardMutableBigNum(lhs) & bignum::integer::usgn::StandardMutableBigNum(rhs)) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return (dgstd::BigUINT(lhs) & dgstd::BigUINT(rhs)) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_or(std::string lhs, std::string rhs, std::string rs){
     
-    return (bignum::integer::usgn::StandardMutableBigNum(lhs) | bignum::integer::usgn::StandardMutableBigNum(rhs)) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return (dgstd::BigUINT(lhs) | dgstd::BigUINT(rhs)) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_xor(std::string lhs, std::string rhs, std::string rs){
     
-    return (bignum::integer::usgn::StandardMutableBigNum(lhs) ^ bignum::integer::usgn::StandardMutableBigNum(rhs)) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return (dgstd::BigUINT(lhs) ^ dgstd::BigUINT(rhs)) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_lshift(std::string lhs, std::string rhs, std::string rs){
-    
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) << bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+
+    return dgstd::BigUINT(lhs) << dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_rshift(std::string lhs, std::string rhs, std::string rs){
     
 
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) >> bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) >> dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 
 bool test_mod(std::string lhs, std::string rhs, std::string rs){
     
-    return bignum::integer::usgn::StandardMutableBigNum(lhs) % bignum::integer::usgn::StandardMutableBigNum(rhs) == bignum::integer::usgn::StandardMutableBigNum(rs);
+    return dgstd::BigUINT(lhs) % dgstd::BigUINT(rhs) == dgstd::BigUINT(rs);
 
 } 
 

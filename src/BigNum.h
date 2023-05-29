@@ -19,9 +19,9 @@ namespace bignum::vector{
     //inline static const uint8_t BIT_LENGTH_PER_SLOT = 1;
      
     #define QWORD_MACHINE
-    #define BIT_LENGTH_PER_SLOT_62
+    //#define BIT_LENGTH_PER_SLOT_62
     //#define BIT_LENGTH_PER_SLOT_30
-    inline static const uint8_t BIT_LENGTH_PER_SLOT = 62;
+    inline static const uint8_t BIT_LENGTH_PER_SLOT = 2;
 
     //inline static const uint8_t BIT_LENGTH_PER_SLOT = sizeof(size_t) * 8 - 2;
     inline static const size_t MAX_VAL_PER_SLOT = ((size_t) 1 << BIT_LENGTH_PER_SLOT) - 1;
@@ -2560,14 +2560,17 @@ namespace bignum::vector::operation_utility{
 
             template <class T, class T1>
             bool fit(memory::sizet_linear::VectorReadable<T>& lhs, memory::sizet_linear::VectorReadable<T1>& rhs){
-                                
-                if (lhs.length() == rhs.length()){ 
+                
+                size_t lhs_last_idx = lhs.length() - 1;
+                size_t rhs_last_idx = rhs.length() - 1; 
+
+                if (lhs_last_idx == rhs_last_idx){ 
                     
-                    return (rhs.get(rhs.length() - 1) < lhs.get(lhs.length() - 1)) && (lhs.get(lhs.length() - 1) <= this->threshold); 
+                    return (rhs.get(lhs_last_idx) < lhs.get(lhs_last_idx)) && (lhs.get(lhs_last_idx) <= this->threshold); 
 
                 }
 
-                if ((lhs.length() > rhs.length()) && (lhs.get(lhs.length() - 1) <= this->threshold)){
+                if ((lhs_last_idx > rhs_last_idx) && (lhs.get(lhs_last_idx) <= this->threshold)){
 
                     return true;
 
@@ -2580,47 +2583,37 @@ namespace bignum::vector::operation_utility{
     };
 
     class QuickMinusJudge: public Judgable<QuickMinusJudge>{
-
-        private:
-
-            LegalTrueBoolVectorViewCaster true_view_caster;
-
-            uint8_t WINDOW_SIZE = 5;
         
         public:
 
             template <class T, class T1>
             bool fit(memory::sizet_linear::VectorReadable<T>& lhs, memory::sizet_linear::VectorReadable<T1>& rhs){
-
-                auto casted_lhs = this->true_view_caster.cast(lhs);
-                auto casted_rhs = this->true_view_caster.cast(rhs);
-
-                return this->is_post_same_length(casted_lhs, casted_rhs); 
-
-            }
-        
-        private:
-
-            template <class T, class T1>
-            bool is_post_same_length(datastructure::UnalignedViewableBoolVector<T> lhs, datastructure::UnalignedViewableBoolVector<T1> rhs){
                 
-                if (lhs.length() == 0){
+                uint8_t MIN_THRESHOLD = 1;
+                size_t lhs_last_idx = lhs.length() - 1;
+                size_t rhs_last_idx = rhs.length() - 1;
+
+                if (lhs_last_idx == rhs_last_idx){
+
+                    if ((lhs.get(lhs_last_idx) >> 1) > rhs.get(lhs_last_idx)){
+
+                        return true;
+
+                    }
 
                     return false;
 
                 }
 
-                size_t ptr = rhs.length();
+                if (lhs_last_idx > rhs_last_idx){
 
-                while ((ptr < (lhs.length() - 1)) && ((ptr - rhs.length()) < WINDOW_SIZE)){
-
-                    if (lhs.get(ptr)){
+                    if (lhs.get(lhs_last_idx) > MIN_THRESHOLD){
 
                         return true;
-                        
+
                     }
 
-                    ++ptr;
+                    return false;
 
                 }
 
@@ -7869,31 +7862,57 @@ namespace bignum::integer::usgn{
             }
 
     };
-   
-    class StandardMutableBigNum: public MutableBigNumable<StandardMutableBigNum>, public memory::sizet_linear::StandardReallocatableMemControlledVectorOperator, private RetrieverWrapper{
+    
+    class BigNumStdAllocator: public memory::linear::Allocatable<BigNumStdAllocator>, public memory::linear::StdAllocator{
         
         public:
 
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::get;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::length;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::resize;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::resize_no_copy;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::get_data;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::sizeof_slot;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::set;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::to_vector_readable;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::to_operatable_vector;
-            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::to_reallocatable_operatable_vector;
+            using memory::linear::StdAllocator::malloc;
+            using memory::linear::StdAllocator::free;
+
+    };
+
+    class BigNumCircularAllocator: public memory::linear::Allocatable<BigNumCircularAllocator>, public memory::linear::CircularAllocator{
+
+        private:
+
+            static const uint16_t CIRCULAR_BUF_LENGTH = std::numeric_limits<uint16_t>::max();
+        
+        public:
+
+            BigNumCircularAllocator(): memory::linear::CircularAllocator(CIRCULAR_BUF_LENGTH){};
+
+            using memory::linear::CircularAllocator::malloc;
+            using memory::linear::CircularAllocator::free;
+
+    };
+
+    template <class Allocator>
+    class CustomAllocatorMutableBigNum: public MutableBigNumable<CustomAllocatorMutableBigNum<Allocator>>, public memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>, 
+                                        private RetrieverWrapper{
+        
+        public:
+
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::get;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::length;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::resize;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::resize_no_copy;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::get_data;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::sizeof_slot;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::set;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::to_vector_readable;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::to_operatable_vector;
+            using memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::to_reallocatable_operatable_vector;
 
         public:
 
-            StandardMutableBigNum(){
+            CustomAllocatorMutableBigNum(){
 
                 *this = 0;
 
             }
 
-            StandardMutableBigNum(std::string obj){
+            CustomAllocatorMutableBigNum(std::string obj){
 
                 auto tup = this->get_retriever().get_parser();
                 auto rs = tup.first->parse(obj);
@@ -7902,20 +7921,20 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum(size_t val){
+            CustomAllocatorMutableBigNum(size_t val){
 
                 *this = val;
 
             }
 
             template <class T>
-            StandardMutableBigNum(BigNumable<T>& obj){
+            CustomAllocatorMutableBigNum(BigNumable<T>& obj){
                                 
                 *this = obj;
 
             }
 
-            StandardMutableBigNum(StandardMutableBigNum&& obj): memory::sizet_linear::StandardReallocatableMemControlledVectorOperator(std::move(obj)){}
+            CustomAllocatorMutableBigNum(CustomAllocatorMutableBigNum&& obj): memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>(std::move(obj)){}
 
             template <class T>
             bool operator > (BigNumable<T>& rhs){
@@ -7930,9 +7949,9 @@ namespace bignum::integer::usgn{
 
             }
             
-            bool operator > (StandardMutableBigNum&& rhs){
+            bool operator > (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this > (BigNumable&) rhs;
+                return this->get_retriever().get_comparer().first->compare(*this, rhs) == 1;
 
             }
 
@@ -7949,9 +7968,9 @@ namespace bignum::integer::usgn{
 
             }
 
-            bool operator < (StandardMutableBigNum&& rhs){
+            bool operator < (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this < (BigNumable&) rhs;
+                return this->get_retriever().get_comparer().first->compare(*this, rhs) == -1;
 
             }
 
@@ -7968,9 +7987,9 @@ namespace bignum::integer::usgn{
 
             }
 
-            bool operator == (StandardMutableBigNum&& rhs){
+            bool operator == (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this == (BigNumable&) rhs;
+                return this->get_retriever().get_comparer().first->compare(*this, rhs) == 0;
 
             }
 
@@ -7987,9 +8006,9 @@ namespace bignum::integer::usgn{
 
             }
 
-            bool operator != (StandardMutableBigNum&& rhs){
+            bool operator != (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this != (BigNumable&) rhs;
+                return !(*this == rhs);
 
             }
 
@@ -8006,9 +8025,9 @@ namespace bignum::integer::usgn{
 
             }
 
-            bool operator >= (StandardMutableBigNum&& rhs){
+            bool operator >= (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this >= (BigNumable&) rhs;
+                return this->get_retriever().get_comparer().first->compare(*this, rhs) >= 0;
 
             }
 
@@ -8025,9 +8044,9 @@ namespace bignum::integer::usgn{
 
             }
             
-            bool operator <= (StandardMutableBigNum&& rhs){
+            bool operator <= (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this <= (BigNumable&) rhs;
+                return this->get_retriever().get_comparer().first->compare(*this, rhs) <= 0;
                 
             }
 
@@ -8037,16 +8056,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator = (StandardMutableBigNum&& obj){
+            CustomAllocatorMutableBigNum& operator = (CustomAllocatorMutableBigNum&& obj){
 
-                memory::sizet_linear::StandardReallocatableMemControlledVectorOperator::operator=(std::move(obj));
+                memory::sizet_linear::StandardReallocatableMemControlledVectorOperator<Allocator>::operator=(std::move(obj));
 
                 return *this;
 
             }
 
             template <class T>
-            StandardMutableBigNum& operator = (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator = (BigNumable<T>& rhs){
                                 
                 if (this->length() != rhs.length()){
 
@@ -8064,7 +8083,7 @@ namespace bignum::integer::usgn{
 
             }
             
-            StandardMutableBigNum& operator = (size_t rhs){
+            CustomAllocatorMutableBigNum& operator = (size_t rhs){
                 
                 this->get_retriever().get_mutable_operator().first->assign(*this, rhs);
                 
@@ -8073,266 +8092,292 @@ namespace bignum::integer::usgn{
             }
             
             template <class T>
-            StandardMutableBigNum operator + (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator + (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->plus(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator + (size_t rhs){
+            CustomAllocatorMutableBigNum operator + (size_t rhs){
                             
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->plus(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
             
             }
 
-            StandardMutableBigNum operator + (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator + (CustomAllocatorMutableBigNum&& rhs){
 
-                rhs += (BigNumable&) *this;
+                rhs += *this;
 
-                return StandardMutableBigNum(std::move(rhs));
+                return CustomAllocatorMutableBigNum(std::move(rhs));
                 
             }
 
             template <class T>
-            StandardMutableBigNum operator - (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator - (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->minus(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator - (size_t rhs){
+            CustomAllocatorMutableBigNum operator - (size_t rhs){
                 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->minus(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator - (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator - (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this - (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->minus(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
             
             template <class T>
-            StandardMutableBigNum operator * (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator * (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->multiply(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator * (size_t rhs){
+            CustomAllocatorMutableBigNum operator * (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->multiply(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator * (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator * (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this * (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->multiply(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
         
             template <class T>
-            StandardMutableBigNum operator / (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator / (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->divide(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator / (size_t rhs){
+            CustomAllocatorMutableBigNum operator / (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->divide(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator / (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator / (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this / (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->divide(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator % (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator % (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->mod(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator % (size_t rhs){
+            CustomAllocatorMutableBigNum operator % (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->mod(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator % (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator % (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this % (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->mod(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator & (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator & (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->and_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator & (size_t rhs){
+            CustomAllocatorMutableBigNum operator & (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->and_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator & (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator & (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this & (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->and_ops(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator | (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator | (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs  = tup.first->or_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator | (size_t rhs){
+            CustomAllocatorMutableBigNum operator | (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->or_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator | (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator | (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this | (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs  = tup.first->or_ops(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator ^ (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator ^ (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->xor_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator ^ (size_t rhs){
+            CustomAllocatorMutableBigNum operator ^ (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->xor_ops(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator ^ (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator ^ (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this ^ (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->xor_ops(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator >> (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator >> (BigNumable<T>& rhs){
 
                auto tup = this->get_retriever().get_immutable_operator();
                auto rs = tup.first->rshift(*this, rhs);
 
-               return StandardMutableBigNum(rs);
+               return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator >> (size_t rhs){
+            CustomAllocatorMutableBigNum operator >> (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->rshift(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator >> (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator >> (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this >> (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->rshift(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum operator << (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum operator << (BigNumable<T>& rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->lshift(*this, rhs);
 
-                return StandardMutableBigNum(rs);
-
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
-            StandardMutableBigNum operator << (size_t rhs){
+            CustomAllocatorMutableBigNum operator << (size_t rhs){
 
                 auto tup = this->get_retriever().get_immutable_operator();
                 auto rs = tup.first->lshift(*this, rhs);
 
-                return StandardMutableBigNum(rs);
+                return CustomAllocatorMutableBigNum(rs);
 
 
             }
 
-            StandardMutableBigNum operator << (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum operator << (CustomAllocatorMutableBigNum&& rhs){
 
-                return *this << (BigNumable&) rhs; 
+                auto tup = this->get_retriever().get_immutable_operator();
+                auto rs = tup.first->lshift(*this, rhs);
+
+                return CustomAllocatorMutableBigNum(rs);
 
             }
 
             template <class T>
-            StandardMutableBigNum& operator += (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator += (BigNumable<T>& rhs){
                 
                 this->get_retriever().get_mutable_operator().first->plus(*this, rhs);
 
@@ -8340,22 +8385,24 @@ namespace bignum::integer::usgn{
             
             }
 
-            StandardMutableBigNum& operator += (size_t rhs){
+            CustomAllocatorMutableBigNum& operator += (size_t rhs){
                 
-               this->get_retriever().get_mutable_operator().first->plus(*this, rhs);
+                this->get_retriever().get_mutable_operator().first->plus(*this, rhs);
 
                 return *this;
 
             }
 
-            StandardMutableBigNum& operator += (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator += (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this += (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->plus(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator -= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator -= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->minus(*this, rhs);
 
@@ -8363,7 +8410,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator -= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator -= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->minus(*this, rhs);
 
@@ -8371,14 +8418,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator -= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator -= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this -= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->minus(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator *= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator *= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->multiply(*this, rhs);
 
@@ -8386,7 +8435,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator *= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator *= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->multiply(*this, rhs);
 
@@ -8394,14 +8443,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator *= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator *= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this *= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->multiply(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator /= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator /= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->divide(*this, rhs);
 
@@ -8409,7 +8460,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator /= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator /= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->divide(*this, rhs);
 
@@ -8417,14 +8468,16 @@ namespace bignum::integer::usgn{
 
             }
            
-            StandardMutableBigNum& operator /= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator /= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this /= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->divide(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator %= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator %= (BigNumable<T>& rhs){
                 
                 this->get_retriever().get_mutable_operator().first->mod(*this, rhs);
 
@@ -8432,7 +8485,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator %= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator %= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->mod(*this, rhs);
 
@@ -8440,14 +8493,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator %= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator %= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this %= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->mod(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator &= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator &= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->and_ops(*this, rhs);
 
@@ -8455,7 +8510,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator &= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator &= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->and_ops(*this, rhs);
 
@@ -8463,14 +8518,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator &= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator &= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this &= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->and_ops(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator |= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator |= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->or_ops(*this, rhs);
 
@@ -8478,7 +8535,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator |= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator |= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->or_ops(*this, rhs);
 
@@ -8486,14 +8543,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator |= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator |= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this |= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->or_ops(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator ^= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator ^= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->xor_ops(*this, rhs);
 
@@ -8501,7 +8560,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator ^= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator ^= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->xor_ops(*this, rhs);
 
@@ -8509,14 +8568,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator ^= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator ^= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this ^= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->xor_ops(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator >>= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator >>= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->rshift(*this, rhs);
 
@@ -8524,7 +8585,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator >>= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator >>= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->rshift(*this, rhs);
 
@@ -8532,14 +8593,16 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator >>= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator >>= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this >>= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->rshift(*this, rhs);
+
+                return *this;
             
             }
 
             template <class T>
-            StandardMutableBigNum& operator <<= (BigNumable<T>& rhs){
+            CustomAllocatorMutableBigNum& operator <<= (BigNumable<T>& rhs){
 
                 this->get_retriever().get_mutable_operator().first->lshift(*this, rhs);
 
@@ -8547,7 +8610,7 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator <<= (size_t rhs){
+            CustomAllocatorMutableBigNum& operator <<= (size_t rhs){
 
                 this->get_retriever().get_mutable_operator().first->lshift(*this, rhs);
 
@@ -8555,19 +8618,22 @@ namespace bignum::integer::usgn{
 
             }
 
-            StandardMutableBigNum& operator <<= (StandardMutableBigNum&& rhs){
+            CustomAllocatorMutableBigNum& operator <<= (CustomAllocatorMutableBigNum&& rhs){
                 
-                return *this <<= (BigNumable&) rhs;
+                this->get_retriever().get_mutable_operator().first->lshift(*this, rhs);
+
+                return *this;
             
             }
 
     };
 
-}
+}   
 
 namespace dgstd{
 
-    using BigUINT = bignum::integer::usgn::StandardMutableBigNum; 
+    using BigUINT = bignum::integer::usgn::CustomAllocatorMutableBigNum<bignum::integer::usgn::BigNumStdAllocator>; 
+    using CircularBigUINT = bignum::integer::usgn::CustomAllocatorMutableBigNum<bignum::integer::usgn::BigNumCircularAllocator>;
 
     static void big_uint_resource_init(size_t n = 1){
 
@@ -8580,6 +8646,8 @@ namespace dgstd{
     static void big_uint_resource_destruct(){
 
         bignum::integer::usgn::ResourceDestructor();
+        memory::linear::AllocatorSingleton<bignum::integer::usgn::BigNumStdAllocator>::destruct();
+        memory::linear::AllocatorSingleton<bignum::integer::usgn::BigNumCircularAllocator>::destruct();
 
     }
 
