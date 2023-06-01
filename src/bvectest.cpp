@@ -82,26 +82,30 @@ int main(){
     size_t n = 0;
     ResourceInitiator(1);
 
-    dgstd::BigUINT inc(1);
+    auto allocator = memory::sizet_linear::StandardGenerator().get_temp_storage(1024);
+    auto casted_allocator = allocator->to_temp_storage_generatable_sp(allocator);
+    auto arith = bignum::integer::usgn::mutable_operation::IDArithmeticOperatorGenerator().get_arithmetic(casted_allocator, A());
+    std::cout << &*allocator << "<temp storage addr>" << std::endl;
+
+    dgstd::StackBigUINT<3> inc(1);
 
     while (true){
         
-        dgstd::BigUINT num(1000);
+        dgstd::StackBigUINT<3> num(1);
 
         std::cout << "enter n: ";
         std::cin >> n;
-
-        auto start = steady_clock().now();
         
-        for (size_t i =  1; i < n; ++i){
+        auto start = steady_clock().now();
 
-            num -= inc;
-            std::cout << num.to_string() << std::endl;
+        for (size_t i = 0; i < n; ++i){
+
+            num += num;
 
         }
         
-        auto lapsed = duration_cast<milliseconds>(steady_clock().now() - start).count();
-        std::cout << lapsed << "----" << std::endl;
+        std::cout << num.to_string() << std::endl;
+        std::cout << duration_cast<milliseconds>(steady_clock().now() - start).count() << "<lapsed>" << std::endl;
         
     }
     

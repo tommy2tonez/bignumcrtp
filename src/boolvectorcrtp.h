@@ -1782,7 +1782,8 @@ namespace utility::boolvector{
             }
     };
 
-    class RightZeroViewTrimmer: public BoolVectorViewTrimmable<RightZeroViewTrimmer>{ // -> return unstable addr obj
+    template <class ID>
+    class RightZeroViewTrimmer: public BoolVectorViewTrimmable<RightZeroViewTrimmer<ID>>{ // -> return unstable addr obj
 
         public:
 
@@ -1804,7 +1805,8 @@ namespace utility::boolvector{
 
     };
 
-    class RightZeroOperatorTrimmer: public BoolVectorOperatorTrimmable<RightZeroOperatorTrimmer>{ // -> return unstable addr obj
+    template <class ID>
+    class RightZeroOperatorTrimmer: public BoolVectorOperatorTrimmable<RightZeroOperatorTrimmer<ID>>{ // -> return unstable addr obj
 
         public:
             
@@ -1824,7 +1826,8 @@ namespace utility::boolvector{
             }
     };
     
-    class StableRightZeroViewTrimmer: public StableBoolVectorViewTrimmable<StableRightZeroViewTrimmer> {
+    template <class ID>
+    class StableRightZeroViewTrimmer: public StableBoolVectorViewTrimmable<StableRightZeroViewTrimmer<ID>> {
 
         public:
 
@@ -1845,7 +1848,8 @@ namespace utility::boolvector{
 
     };
 
-    class StableRightZeroOperatorTrimmer: public StableBoolVectorOperatorTrimmable<StableRightZeroOperatorTrimmer> {
+    template <class ID>
+    class StableRightZeroOperatorTrimmer: public StableBoolVectorOperatorTrimmable<StableRightZeroOperatorTrimmer<ID>> {
 
         public:
 
@@ -1866,31 +1870,67 @@ namespace utility::boolvector{
 
     };
 
+    class GenericID{};
+
     class StandardGenerator{
 
         public:
 
             auto get_right_zero_view_trimmer(){
 
-                return std::shared_ptr<RightZeroViewTrimmer>(new RightZeroViewTrimmer());
+                return std::shared_ptr<RightZeroViewTrimmer<GenericID>>(new RightZeroViewTrimmer<GenericID>());
 
             }
 
             auto get_right_zero_operator_trimmer(){
 
-                return std::shared_ptr<RightZeroOperatorTrimmer>(new RightZeroOperatorTrimmer());
+                return std::shared_ptr<RightZeroOperatorTrimmer<GenericID>>(new RightZeroOperatorTrimmer<GenericID>());
                 
             }
 
             auto get_right_zero_view_stable_trimmer(){
 
-                return std::shared_ptr<StableRightZeroViewTrimmer>(new StableRightZeroViewTrimmer());
+                return std::shared_ptr<StableRightZeroViewTrimmer<GenericID>>(new StableRightZeroViewTrimmer<GenericID>());
 
             }
 
             auto get_right_zero_operator_stable_trimmer(){
 
-                return std::shared_ptr<StableRightZeroOperatorTrimmer>(new StableRightZeroOperatorTrimmer());
+                return std::shared_ptr<StableRightZeroOperatorTrimmer<GenericID>>(new StableRightZeroOperatorTrimmer<GenericID>());
+
+            }
+
+    };
+
+    class IDGenerator{
+
+        public:
+
+            template <class ID>
+            auto get_right_zero_view_trimmer(ID){
+
+                return std::shared_ptr<RightZeroViewTrimmer<ID>>(new RightZeroViewTrimmer<ID>());
+
+            }
+
+            template <class ID>
+            auto get_right_zero_operator_trimmer(ID){
+
+                return std::shared_ptr<RightZeroOperatorTrimmer<ID>>(new RightZeroOperatorTrimmer<ID>());
+                
+            }
+
+            template <class ID>
+            auto get_right_zero_view_stable_trimmer(ID){
+
+                return std::shared_ptr<StableRightZeroViewTrimmer<ID>>(new StableRightZeroViewTrimmer<ID>());
+
+            }
+
+            template <class ID>
+            auto get_right_zero_operator_stable_trimmer(ID){
+
+                return std::shared_ptr<StableRightZeroOperatorTrimmer<ID>>(new StableRightZeroOperatorTrimmer<ID>());
 
             }
 

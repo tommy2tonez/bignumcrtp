@@ -22,7 +22,7 @@ namespace memory{
                     return static_cast<T*>(this)->malloc(n);
 
                 }
-
+    
                 void free(void * ptr){
 
                     static_cast<T*>(this)->free(ptr);
@@ -33,6 +33,26 @@ namespace memory{
                 std::shared_ptr<Allocatable<T>> to_allocatable_sp(std::shared_ptr<T1> data){
 
                     return std::dynamic_pointer_cast<Allocatable<T>>(data); 
+
+                }
+
+        };
+
+        template <class T>
+        class Reallocatable: public Allocatable<T>{
+
+            public:
+
+                void * realloc(void * ptr, size_t n){
+                                        
+                    return static_cast<T*>(this)->realloc(ptr, n); 
+
+                }
+
+                template <class T1>
+                std::shared_ptr<Reallocatable<T>> to_reallocatable_sp(std::shared_ptr<T1> data){
+
+                    return std::dynamic_pointer_cast<Reallocatable<T>>(data); 
 
                 }
 
@@ -260,7 +280,7 @@ namespace memory{
 
                 }
 
-                VectorReadable<T> * to_vec_readable(){
+                VectorReadable<T> * to_vector_readable(){
 
                     return this;
                     
@@ -313,6 +333,43 @@ namespace memory{
         };
 
         template <class T>
+        class StackAllocatedReallocatableOperatableVector: public ReallocatableOperatableVector<T>, public StackAllocatedVectorReadable<T>{
+                
+            public:
+
+                size_t get(size_t idx){
+
+                    return static_cast<T*>(this)->get(idx); 
+
+                }
+
+                size_t length(){
+
+                    return static_cast<T*>(this)->length();
+
+                } 
+
+                void * get_data(){
+
+                    return static_cast<T*>(this)->get_data();
+
+                }
+
+                size_t sizeof_slot(){
+
+                    return StackAllocatedVectorReadable<T>::sizeof_slot();
+
+                }
+
+                VectorReadable<T> * to_vector_readable(){
+
+                    return this;
+                    
+                }
+
+        };
+
+        template <class T>
         class TempStorageGeneratable: public linear::TempStorageGeneratable<T>{
 
             public:
@@ -349,6 +406,12 @@ namespace memory{
                 std::shared_ptr<TempStorageGeneratable<T>> to_temp_storage_generatable_sp(std::shared_ptr<T1> data){
 
                     return std::dynamic_pointer_cast<TempStorageGeneratable<T>>(data); 
+
+                }
+
+                auto get_containee_type(){
+
+                    return T(); 
 
                 }
 
@@ -396,6 +459,26 @@ namespace memory{
                 std::shared_ptr<VectorReadableGeneratable<T>> to_vector_readable_generatable_sp(std::shared_ptr<T1> data){
 
                     return std::dynamic_pointer_cast<VectorReadableGeneratable<T>>(data); 
+
+                }
+
+        };
+
+        template <class T>
+        class ReallocatableVectorGeneratable{
+
+            public:
+
+                auto get(){
+
+                    return static_cast<T*>(this)->get();
+
+                }
+
+                template <class T1>
+                std::shared_ptr<ReallocatableVectorGeneratable<T>> to_reallocatable_vector_generatable_sp(std::shared_ptr<T1> data){
+
+                    return std::dynamic_pointer_cast<ReallocatableVectorGeneratable<T>>(data); 
 
                 }
 
@@ -1006,15 +1089,39 @@ namespace memory::linear{
 
         public:
 
-            inline constexpr void * malloc(size_t n) const noexcept{
+            void * malloc(size_t n) const noexcept{
 
                 return std::malloc(n);
             
             }
 
-            inline constexpr void free(void * ptr) const noexcept{
-
+            void free(void * ptr) const noexcept{
+                      
                 std::free(ptr);
+
+            }
+
+    };
+
+    class StdReallocator: public Reallocatable<StdReallocator>{
+        
+        public:
+
+            void * malloc(size_t n) {
+                
+                return std::malloc(n);
+            
+            }
+
+            void free(void * ptr){
+                  
+                std::free(ptr);
+
+            }
+
+            void * realloc(void * ptr, size_t n){
+                
+                return std::realloc(ptr, n);
 
             }
 
@@ -1064,6 +1171,53 @@ namespace memory::linear{
             }
     
             void free(void*){};
+
+    };
+
+    class CircularReallocator: public Reallocatable<CircularReallocator>, public CircularAllocator{
+
+        public:
+
+            CircularReallocator(size_t base_length): CircularAllocator(base_length){}
+
+            void * malloc(size_t n){
+                
+                size_t total_buf_n = n + sizeof(size_t); 
+                void * buf = CircularAllocator::malloc(total_buf_n);
+                std::memcpy(buf, &n, sizeof(size_t));
+
+                return (char *) buf + sizeof(size_t);
+
+            }
+
+            void * realloc(void * ptr, size_t n){
+                
+                if (ptr == nullptr){
+                    
+                    return this->malloc(n);
+
+                }
+
+                size_t prev_n = 0;
+                void * src = (char *) ptr - sizeof(size_t); 
+
+                std::memcpy(&prev_n, src, sizeof(size_t));
+                
+                if (n <= prev_n){
+
+                    return ptr;
+
+                } 
+                                
+                void * new_buf = this->malloc(n);
+                std::memcpy(new_buf, ptr, prev_n);
+
+                return new_buf;
+
+
+            }
+
+            void free(void *){}
 
     };
 
@@ -1534,7 +1688,12 @@ namespace memory::sizet_linear{
 
         public:
 
-            StandardVectorOperator() = default;
+            StandardVectorOperator(){
+
+                this->data = nullptr;
+                this->sz = 0;
+
+            }
 
             StandardVectorOperator(size_t * data, size_t sz){
 
@@ -1700,8 +1859,99 @@ namespace memory::sizet_linear{
             }
 
     };
+    
+    template <unsigned CAP>
+    class StandardStackAllocatedVector: public StackAllocatedReallocatableOperatableVector<StandardStackAllocatedVector<CAP>>{
 
-    class StackAllocatedAddableVectorGenerator: public AddableVectorGeneratable<StackAllocatedAddableVectorGenerator>{
+        private:
+
+            size_t data[CAP];
+            uint8_t sz;
+        
+        public:
+
+            StandardStackAllocatedVector(){
+
+                this->sz = 0;
+
+            }
+
+            StandardStackAllocatedVector(const StandardStackAllocatedVector& obj){
+
+                *this = obj;
+
+            }
+
+            StandardStackAllocatedVector(StandardStackAllocatedVector&& obj){
+
+                *this = obj;
+
+            }
+
+            StandardStackAllocatedVector& operator = (StandardStackAllocatedVector&& obj){
+                
+                return *this = obj;
+
+            }
+
+            StandardStackAllocatedVector& operator = (const StandardStackAllocatedVector& obj){
+                
+                this->sz = obj.sz;
+                
+                for (size_t i = 0; i < obj.sz; ++i){
+
+                    this->data[i] = obj.data[i];
+                
+                }
+
+                return *this;
+
+            }
+
+            size_t get(size_t idx){
+
+                return this->data[idx];
+
+            }
+
+            void set(size_t idx, size_t val){
+
+                this->data[idx] = val;
+
+            }
+
+            size_t length(){
+
+                return this->sz;
+
+            }
+
+            void * get_data(){
+
+                return this->data; 
+
+            }
+
+            void resize(size_t sz){
+
+                assert(sz <= CAP);
+
+                this->sz = sz;
+
+            }
+
+            void resize_no_copy(size_t sz){
+
+                assert(sz <= CAP);
+
+                this->sz = sz;
+
+            }
+
+    };
+
+    template <class ID>
+    class StackAllocatedAddableVectorGenerator: public AddableVectorGeneratable<StackAllocatedAddableVectorGenerator<ID>>{
 
         public:
 
@@ -1724,7 +1974,7 @@ namespace memory::sizet_linear{
             };
 
     };
-
+    
     template <class T>
     class StandardMemControlledVectorOperator: public StandardVectorOperator{
 
@@ -1732,19 +1982,22 @@ namespace memory::sizet_linear{
 
             StandardMemControlledVectorOperator(): StandardVectorOperator(nullptr, 0){}
             
+            StandardMemControlledVectorOperator(size_t * buf, size_t n): StandardVectorOperator(buf, n){}
+
             StandardMemControlledVectorOperator(size_t sz): StandardVectorOperator((size_t *) memory::linear::AllocatorSingleton<T>().get()->malloc(sz * sizeof(size_t)), sz){}
-                        
+     
             StandardMemControlledVectorOperator(StandardMemControlledVectorOperator&& mv): StandardVectorOperator(std::forward<StandardVectorOperator>(mv)){};
             
             StandardMemControlledVectorOperator(StandardMemControlledVectorOperator& obj): StandardVectorOperator((size_t *) memory::linear::AllocatorSingleton<T>().get()->malloc(obj.length() * sizeof(size_t)), obj.length()){
 
-                std::memcpy(this->data, obj.data, obj.length() * sizeof(size_t));
+                std::memcpy(this->get_data(), obj.get_data(), obj.length() * sizeof(size_t));
 
             }
 
+
             StandardMemControlledVectorOperator& operator =(StandardMemControlledVectorOperator&& obj){
                 
-                memory::linear::AllocatorSingleton<T>().get()->free(this->data);
+                memory::linear::AllocatorSingleton<T>().get()->free(this->get_data());
                 StandardVectorOperator::operator=(std::move(obj));
 
                 return *this;
@@ -1752,7 +2005,7 @@ namespace memory::sizet_linear{
             }
 
             StandardMemControlledVectorOperator& operator =(StandardMemControlledVectorOperator& obj){
-                
+                                
                 StandardMemControlledVectorOperator cp_obj(obj);
 
                 return *this = std::move(cp_obj);
@@ -1761,7 +2014,7 @@ namespace memory::sizet_linear{
 
             ~StandardMemControlledVectorOperator(){
 
-                memory::linear::AllocatorSingleton<T>().get()->free(this->data);
+                memory::linear::AllocatorSingleton<T>().get()->free(this->get_data());
 
             }
 
@@ -1777,8 +2030,8 @@ namespace memory::sizet_linear{
 
             StandardReallocatableMemControlledVectorOperator(size_t sz): StandardMemControlledVectorOperator<T>(sz){}
 
-            void resize(size_t sz){
-                                
+            void resize(size_t sz){                 
+                
                 StandardMemControlledVectorOperator<T> new_data(sz);
                 size_t cp_length = std::min(sz, this->length()); 
                 
@@ -1787,7 +2040,7 @@ namespace memory::sizet_linear{
                     new_data.set(i, this->get(i));
 
                 }
-                
+   
                 StandardMemControlledVectorOperator<T>::operator=(std::move(new_data));
 
             }
@@ -1809,7 +2062,58 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardDanglingOperatableVectorGenerator: public DanglingOperatableVectorGeneratable<StandardDanglingOperatableVectorGenerator>{
+    template <class T>
+    class RelaxReallocatableMemControlledVectorOperator: public StandardMemControlledVectorOperator<T>, public ReallocatableOperatableVector<RelaxReallocatableMemControlledVectorOperator<T>>{
+
+        public:
+
+            RelaxReallocatableMemControlledVectorOperator() = default;
+
+            RelaxReallocatableMemControlledVectorOperator(size_t sz): StandardMemControlledVectorOperator<T>(sz){}
+
+            void resize(size_t sz){
+
+                if (this->length() >= sz){
+                    
+                    StandardVectorOperator::operator=(StandardVectorOperator((size_t *) this->get_data(), sz));
+                    
+                    return;
+
+                }
+
+                memory::linear::Reallocatable<T> * casted = static_cast<memory::linear::Reallocatable<T>*>(memory::linear::AllocatorSingleton<T>::get());
+                void * ptr = casted->realloc(this->get_data(), sz * sizeof(size_t));
+                StandardVectorOperator::operator=(StandardVectorOperator((size_t *) ptr, sz));
+
+            }
+
+            void resize_no_copy(size_t sz){
+                
+                if (this->length() >= sz){
+                    
+                    StandardVectorOperator::operator=(StandardVectorOperator((size_t *) this->get_data(), sz));
+
+                    return;
+
+                }
+
+                size_t * new_buf = (size_t *) memory::linear::AllocatorSingleton<T>::get()->malloc(sz * sizeof(size_t));
+                StandardMemControlledVectorOperator<T>::operator=(StandardMemControlledVectorOperator<T>(new_buf, sz));
+
+            }
+
+            using StandardMemControlledVectorOperator<T>::get;
+            using StandardMemControlledVectorOperator<T>::get_data;
+            using StandardMemControlledVectorOperator<T>::length;
+            using StandardMemControlledVectorOperator<T>::sizeof_slot;
+            using StandardMemControlledVectorOperator<T>::set;
+            using StandardMemControlledVectorOperator<T>::to_operatable_vector;
+            using StandardMemControlledVectorOperator<T>::to_vector_readable;
+
+    };
+
+    template <class ID>
+    class StandardDanglingOperatableVectorGenerator: public DanglingOperatableVectorGeneratable<StandardDanglingOperatableVectorGenerator<ID>>{
 
         public:
 
@@ -1821,7 +2125,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardDanglingDefaultInitOperatableVectorGenerator: public DanglingOperatableVectorGeneratable<StandardDanglingDefaultInitOperatableVectorGenerator>{
+    template <class ID>
+    class StandardDanglingDefaultInitOperatableVectorGenerator: public DanglingOperatableVectorGeneratable<StandardDanglingDefaultInitOperatableVectorGenerator<ID>>{
 
         public:
 
@@ -1890,7 +2195,7 @@ namespace memory::sizet_linear{
                 
                 if (obj.is_stack_allocated){
 
-                    this->small_view = *obj.small_view.to_vec_readable();
+                    this->small_view = *obj.small_view.to_vector_readable();
                     StandardVectorView::operator=(StandardVectorView((size_t *) this->small_view.get_data(), this->small_view.length())); 
                     this->is_stack_allocated = true;
 
@@ -1909,7 +2214,7 @@ namespace memory::sizet_linear{
                 
                 if (obj.is_stack_allocated){
 
-                    this->small_view = *obj.small_view.to_vec_readable();
+                    this->small_view = *obj.small_view.to_vector_readable();
                     StandardVectorView::operator=(StandardVectorView((size_t *) this->small_view.get_data(), this->small_view.length())); 
                     this->is_stack_allocated = true;
 
@@ -1926,7 +2231,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardVectorReadableGenerator: public VectorReadableGeneratable<StandardVectorReadableGenerator>{
+    template <class ID>
+    class StandardVectorReadableGenerator: public VectorReadableGeneratable<StandardVectorReadableGenerator<ID>>{
 
         public:
 
@@ -1945,7 +2251,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardStackVectorReadableGenerator: public StackVectorReadableGeneratable<StandardStackVectorReadableGenerator>{
+    template <class ID>
+    class StandardStackVectorReadableGenerator: public StackVectorReadableGeneratable<StandardStackVectorReadableGenerator<ID>>{
 
         public:
 
@@ -1971,7 +2278,70 @@ namespace memory::sizet_linear{
 
     };
 
-    class VectorReadableSplitter: public VectorReadableSplittable<VectorReadableSplitter>{
+    template <class T>
+    class CustomAllocatorReallocatableVector: public StandardVectorOperator, public ReallocatableOperatableVector<CustomAllocatorReallocatableVector<T>>{ //relax resize
+
+        private:
+
+            memory::linear::Reallocatable<T> * allocator;
+
+        public:
+
+            CustomAllocatorReallocatableVector(memory::linear::Reallocatable<T> * allocator): StandardVectorOperator(nullptr, 0){
+                
+                this->allocator = allocator;
+
+            }
+            
+            ~CustomAllocatorReallocatableVector(){
+
+                this->allocator->free(this->get_data());
+
+            }
+
+            using StandardVectorOperator::get;
+            using StandardVectorOperator::get_data;
+            using StandardVectorOperator::length;
+            using StandardVectorOperator::set;
+            using StandardVectorOperator::sizeof_slot;
+            using StandardVectorOperator::to_vector_readable;
+            using StandardVectorOperator::to_operatable_vector;
+
+            void resize(size_t n){
+
+                if (n <= StandardVectorOperator::length()){
+                    
+                    StandardVectorOperator::operator=(StandardVectorOperator((size_t *) StandardVectorOperator::get_data(), n));
+                    
+                    return;
+
+                }
+
+                size_t * buf = (size_t *) this->allocator->realloc(StandardVectorOperator::get_data(), n * sizeof(size_t));                
+                StandardVectorOperator::operator=(StandardVectorOperator(buf, n));
+                
+            }
+
+            void resize_no_copy(size_t n){
+                
+                if (n <= StandardVectorOperator::length()){
+                
+                    StandardVectorOperator::operator=(StandardVectorOperator((size_t *) StandardVectorOperator::get_data(), n));
+                    
+                    return;
+                
+                }
+                
+                this->allocator->free(StandardVectorOperator::get_data());
+                size_t * buf = (size_t *) this->allocator->malloc(n * sizeof(size_t));
+                StandardVectorOperator::operator=(StandardVectorOperator(buf, n));
+
+            }
+
+    };
+
+    template <class ID>
+    class VectorReadableSplitter: public VectorReadableSplittable<VectorReadableSplitter<ID>>{
 
         public:
 
@@ -2182,7 +2552,8 @@ namespace memory::sizet_linear{
 
     namespace caster::plm_boolvector{
         
-        class StandardBoolVectorViewCaster: public BoolVectorViewCastable<StandardBoolVectorViewCaster>{
+        template <class ID>
+        class StandardBoolVectorViewCaster: public BoolVectorViewCastable<StandardBoolVectorViewCaster<ID>>{
 
             public:
 
@@ -2195,7 +2566,8 @@ namespace memory::sizet_linear{
 
         };
 
-        class StandardBoolVectorOpCaster: public BoolVectorOpCastable<StandardBoolVectorOpCaster>{
+        template <class ID>
+        class StandardBoolVectorOpCaster: public BoolVectorOpCastable<StandardBoolVectorOpCaster<ID>>{
 
             public:
 
@@ -2304,37 +2676,38 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardExponentialLinearTempStorageGenerator: public TempStorageGeneratable<StandardExponentialLinearTempStorageGenerator>{
+    template <class ID>
+    class StandardExponentialLinearTempStorageGenerator: public TempStorageGeneratable<StandardExponentialLinearTempStorageGenerator<ID>>{
         
         private:
 
             const size_t DEFAULT_BUF = 1024; 
             
-            std::shared_ptr<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator, StandardDanglingDefaultInitOperatableVectorGenerator>> allocator;
+            std::shared_ptr<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator<ID>, StandardDanglingDefaultInitOperatableVectorGenerator<ID>>> allocator;
 
         public:
 
             StandardExponentialLinearTempStorageGenerator(){
                     
-                auto readable_gen = std::make_shared<StandardVectorReadableGenerator>();
-                auto operatable_gen = std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator>();
+                auto readable_gen = std::make_shared<StandardVectorReadableGenerator<ID>>();
+                auto operatable_gen = std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator<ID>>();
                 
                 auto casted_readable_gen = readable_gen->to_vector_readable_generatable_sp(readable_gen);
                 auto casted_operatable_gen = operatable_gen->to_dangling_operatable_vector_generatable_sp(operatable_gen); 
 
-                this->allocator = std::make_shared<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator, StandardDanglingDefaultInitOperatableVectorGenerator>>(DEFAULT_BUF, casted_readable_gen, casted_operatable_gen);
+                this->allocator = std::make_shared<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator<ID>, StandardDanglingDefaultInitOperatableVectorGenerator<ID>>>(DEFAULT_BUF, casted_readable_gen, casted_operatable_gen);
 
             }
 
             StandardExponentialLinearTempStorageGenerator(size_t base_length){
 
-                auto readable_gen = std::make_shared<StandardVectorReadableGenerator>();
-                auto operatable_gen = std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator>();
+                auto readable_gen = std::make_shared<StandardVectorReadableGenerator<ID>>();
+                auto operatable_gen = std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator<ID>>();
                 
                 auto casted_readable_gen = readable_gen->to_vector_readable_generatable_sp(readable_gen);
                 auto casted_operatable_gen = operatable_gen->to_dangling_operatable_vector_generatable_sp(operatable_gen); 
 
-                this->allocator = std::make_shared<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator, StandardDanglingDefaultInitOperatableVectorGenerator>>(base_length, casted_readable_gen, casted_operatable_gen);
+                this->allocator = std::make_shared<ExponentialLinearBlockTempStorageGenerator<StandardVectorReadableGenerator<ID>, StandardDanglingDefaultInitOperatableVectorGenerator<ID>>>(base_length, casted_readable_gen, casted_operatable_gen);
 
             }
             
@@ -2395,9 +2768,141 @@ namespace memory::sizet_linear{
             }
              
     };
+    
+    template <class T>
+    class TempStorageAllocator: public memory::linear::Reallocatable<TempStorageAllocator<T>>{
+
+        private:
+
+            std::shared_ptr<TempStorageGeneratable<T>> temp_storage;
+
+        public:
+
+            TempStorageAllocator(std::shared_ptr<TempStorageGeneratable<T>> temp_storage){
+
+                this->temp_storage = temp_storage;
+
+            }
+
+            void * malloc(size_t n){
+                
+                size_t total_buf_n = n + sizeof(size_t); 
+                void * buf = this->temp_storage->get(total_buf_n);
+                std::memcpy(buf, &n, sizeof(size_t));
+
+                return (char *) buf + sizeof(size_t);
+
+            }
+
+            void * realloc(void * ptr, size_t n){
+                
+                if (ptr == nullptr){
+                    
+                    return this->malloc(n);
+
+                }
+
+                size_t prev_n = 0;
+                void * src = (char *) ptr - sizeof(size_t); 
+
+                std::memcpy(&prev_n, src, sizeof(size_t));
+                
+                if (n <= prev_n){
+
+                    return ptr;
+
+                } 
+                                
+                void * new_buf = this->malloc(n);
+                std::memcpy(new_buf, ptr, prev_n);
+
+                return new_buf;
+
+
+            }
+
+            void free(void *){}
+            
+    };
+
+    template <class T, class ID>
+    class ReallocatableVectorGenerator: public ReallocatableVectorGeneratable<ReallocatableVectorGenerator<T, ID>>{
+
+        private:
+
+            std::shared_ptr<memory::linear::Reallocatable<T>> allocator;
+
+        public:
+
+            ReallocatableVectorGenerator() = default;
+            
+            ReallocatableVectorGenerator(std::shared_ptr<memory::linear::Reallocatable<T>> allocator){
+
+                this->allocator = allocator;
+
+            } 
+
+            auto get(){
+
+                return CustomAllocatorReallocatableVector(&*this->allocator);
+
+            }
+
+    };
+
+    class BitIteratorBase{
+
+        protected:
+
+            size_t get_extractor(size_t bit_length){
+                
+                if (bit_length == BIT_WIDTH){
+
+                    return std::numeric_limits<size_t>::max();
+
+                }
+
+                return ((size_t) 1 << bit_length) - 1;
+
+            } 
+
+            size_t extract(size_t data, size_t bob_idx, size_t eor_idx){
+
+                size_t extractor = this->get_extractor(eor_idx - bob_idx + 1);
+
+                return (data >> bob_idx) & extractor;
+
+            }
+
+            size_t read(size_t * data, size_t bit_idx, size_t read_length){
+                                
+                const uint8_t MIN_BIT_IDX = 0;
+                const uint8_t MAX_BIT_IDX = BIT_WIDTH - 1;
+
+                size_t eor = bit_idx + read_length - 1;  
+                size_t bob_slot = bit_idx / BIT_WIDTH;
+                size_t eor_slot = eor / BIT_WIDTH;
+                size_t bob_offset = bit_idx % BIT_WIDTH;
+                size_t eor_offset = eor % BIT_WIDTH;
+
+                if (bob_slot == eor_slot){
+
+                    return this->extract(data[bob_slot], bob_offset, eor_offset);
+
+                } 
+
+                size_t delta = BIT_WIDTH - bob_offset; 
+                size_t eor_data = this->extract(data[eor_slot], MIN_BIT_IDX, eor_offset);
+                size_t bob_data = this->extract(data[bob_slot], bob_offset, MAX_BIT_IDX);
+
+                return (eor_data << delta) | bob_data;  
+
+            }
+
+    };
 
     template <class T>
-    class DynamicBitIterator: public DynamicBitIterable<DynamicBitIterator<T>>{
+    class DynamicBitIterator: public DynamicBitIterable<DynamicBitIterator<T>>, protected BitIteratorBase{
 
         private:
 
@@ -2448,52 +2953,61 @@ namespace memory::sizet_linear{
 
             }
 
+    };
+
+    template <class T>
+    class ReverseDynamicBitIterator: public DynamicBitIterable<ReverseDynamicBitIterator<T>>, protected BitIteratorBase{
+
         private:
 
-            size_t get_extractor(size_t bit_length){
-                
-                if (bit_length == BIT_WIDTH){
+            VectorReadable<T> * data;
+            intmax_t idx;
+        
+        public:
 
-                    return std::numeric_limits<size_t>::max();
+            ReverseDynamicBitIterator(){
+
+                this->data = nullptr;
+                this->idx = -1;
+
+            }
+
+            ReverseDynamicBitIterator(VectorReadable<T> * data){
+
+                assert(data->length() != 0);
+
+                this->data = data;
+                this->idx = data->length() * BIT_WIDTH - 1;
+
+            }
+
+            ReverseDynamicBitIterator(VectorReadable<T> * data, size_t idx){
+
+                this->data = data;
+                this->idx = idx;
+
+            }
+
+            bool next(size_t& rs, size_t read_length){ 
+
+                assert(read_length <= BIT_WIDTH);
+                assert(read_length > 0);
+                assert(this->data != nullptr);
+
+                if (this->idx < 0){
+
+                    return false; 
 
                 }
 
-                return ((size_t) 1 << bit_length) - 1;
+                size_t real_read_length = std::min(this->idx + 1, (intmax_t) read_length); 
+                this->idx -= real_read_length; 
+                rs = this->read(data->get_data(), this->idx + 1, real_read_length); 
 
-            } 
-
-            size_t extract(size_t data, size_t bob_idx, size_t eor_idx){
-
-                size_t extractor = this->get_extractor(eor_idx - bob_idx + 1);
-
-                return (data >> bob_idx) & extractor;
+                return true;
 
             }
 
-            size_t read(size_t * data, size_t bit_idx, size_t read_length){
-                                
-                const uint8_t MIN_BIT_IDX = 0;
-                const uint8_t MAX_BIT_IDX = BIT_WIDTH - 1;
-
-                size_t eor = bit_idx + read_length - 1;  
-                size_t bob_slot = bit_idx / BIT_WIDTH;
-                size_t eor_slot = eor / BIT_WIDTH;
-                size_t bob_offset = bit_idx % BIT_WIDTH;
-                size_t eor_offset = eor % BIT_WIDTH;
-
-                if (bob_slot == eor_slot){
-
-                    return this->extract(data[bob_slot], bob_offset, eor_offset);
-
-                } 
-
-                size_t delta = BIT_WIDTH - bob_offset; 
-                size_t eor_data = this->extract(data[eor_slot], MIN_BIT_IDX, eor_offset);
-                size_t bob_data = this->extract(data[bob_slot], bob_offset, MAX_BIT_IDX);
-
-                return (eor_data << delta) | bob_data;  
-
-            }
     };
 
     template <class T>
@@ -2519,7 +3033,8 @@ namespace memory::sizet_linear{
   
     };
 
-    class StandardDynamicBitIteratorGenerator: public DynamicBitIteratorGeneratable<StandardDynamicBitIteratorGenerator>{
+    template <class ID>
+    class StandardDynamicBitIteratorGenerator: public DynamicBitIteratorGeneratable<StandardDynamicBitIteratorGenerator<ID>>{
 
         public:
 
@@ -2539,7 +3054,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class StandardBitIteratorGenerator: public BitIteratorGeneratable<StandardBitIteratorGenerator>{
+    template <class ID>
+    class StandardBitIteratorGenerator: public BitIteratorGeneratable<StandardBitIteratorGenerator<ID>>{
 
         public:
 
@@ -2787,7 +3303,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class DynamicBitIterEmptyWriterGenerator: public DynamicBitIterWriterGeneratable<DynamicBitIterEmptyWriterGenerator>{
+    template <class ID>
+    class DynamicBitIterEmptyWriterGenerator: public DynamicBitIterWriterGeneratable<DynamicBitIterEmptyWriterGenerator<ID>>{
 
         public:
 
@@ -2800,7 +3317,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class DynamicBitIterReplaceWriterGenerator: public DynamicBitIterWriterGeneratable<DynamicBitIterReplaceWriterGenerator>{
+    template <class ID>
+    class DynamicBitIterReplaceWriterGenerator: public DynamicBitIterWriterGeneratable<DynamicBitIterReplaceWriterGenerator<ID>>{
 
         public:
 
@@ -2813,7 +3331,8 @@ namespace memory::sizet_linear{
 
     };
 
-    class BitIterEmptyWriterGenerator: public BitIterWriterGeneratable<BitIterEmptyWriterGenerator>{
+    template <class ID>
+    class BitIterEmptyWriterGenerator: public BitIterWriterGeneratable<BitIterEmptyWriterGenerator<ID>>{
 
         public:
 
@@ -2829,95 +3348,236 @@ namespace memory::sizet_linear{
     using namespace caster::plm_boolvector;
     using namespace caster;
 
+    class GenericID{};
+
     class StandardGenerator{
 
         public:
 
             auto get_temp_storage(size_t n){
 
-                return std::make_shared<StandardExponentialLinearTempStorageGenerator>(n);
+                return std::make_shared<StandardExponentialLinearTempStorageGenerator<GenericID>>(n);
 
             }
 
             auto get_dangling_op_vec_default_init_gen(){
 
-                return std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator>();
+                return std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator<GenericID>>();
 
             }
 
             auto get_stack_allocated_addable_vector_gen(){
 
-                return std::make_shared<StackAllocatedAddableVectorGenerator>();
+                return std::make_shared<StackAllocatedAddableVectorGenerator<GenericID>>();
 
             }
 
             auto get_dangling_op_vec_gen(){
 
-                return std::make_shared<StandardDanglingOperatableVectorGenerator>();
+                return std::make_shared<StandardDanglingOperatableVectorGenerator<GenericID>>();
 
             }
 
             auto get_dangling_read_vec_gen(){
 
-                return std::make_shared<StandardVectorReadableGenerator>();
+                return std::make_shared<StandardVectorReadableGenerator<GenericID>>();
 
             } 
 
             auto get_dangling_stack_read_vec_gen(){
 
-                return std::make_shared<StandardStackVectorReadableGenerator>();
+                return std::make_shared<StandardStackVectorReadableGenerator<GenericID>>();
 
             } 
             
             auto get_vector_splitter(){
 
-                return std::make_shared<VectorReadableSplitter>();
+                return std::make_shared<VectorReadableSplitter<GenericID>>();
 
             }
 
             auto get_boolvector_view_caster(){
 
-                return std::make_shared<caster::plm_boolvector::StandardBoolVectorViewCaster>();
+                return std::make_shared<caster::plm_boolvector::StandardBoolVectorViewCaster<GenericID>>();
 
             }
 
             auto get_boolvector_op_caster(){
 
-                return std::make_shared<caster::plm_boolvector::StandardBoolVectorOpCaster>();
+                return std::make_shared<caster::plm_boolvector::StandardBoolVectorOpCaster<GenericID>>();
 
             }
 
             auto get_dynamic_bit_or_writer_gen(){
                 
-                return std::make_shared<DynamicBitIterEmptyWriterGenerator>();
+                return std::make_shared<DynamicBitIterEmptyWriterGenerator<GenericID>>();
 
             }
 
             auto get_dynamic_bit_replace_writer_gen(){
                 
-                return std::make_shared<DynamicBitIterReplaceWriterGenerator>();
+                return std::make_shared<DynamicBitIterReplaceWriterGenerator<GenericID>>();
 
             }
 
             auto get_bit_empty_writer_gen(){
 
-                return std::make_shared<BitIterEmptyWriterGenerator>();
+                return std::make_shared<BitIterEmptyWriterGenerator<GenericID>>();
 
             }
 
             auto get_dynamic_bit_iter_gen(){
 
-                return std::make_shared<StandardDynamicBitIteratorGenerator>();
+                return std::make_shared<StandardDynamicBitIteratorGenerator<GenericID>>();
 
             }
 
             auto get_bit_iter_gen(){
 
-                return std::make_shared<StandardBitIteratorGenerator>();
+                return std::make_shared<StandardBitIteratorGenerator<GenericID>>();
 
             }
-            
+
+            template <class T>
+            auto get_reallocatable_vector_generator(std::shared_ptr<memory::linear::Reallocatable<T>> allocator){
+
+                return std::make_shared<ReallocatableVectorGenerator<T, GenericID>>(allocator);
+
+            }
+
+            template <class T>
+            auto get_temp_gen_realloc_vector_generator(std::shared_ptr<TempStorageGeneratable<T>> temp_storage){ // warning: vector and generator obj coexists 
+
+                auto wrapper = std::make_shared<TempStorageAllocator<T>>(temp_storage);
+                auto casted = wrapper->to_reallocatable_sp(wrapper);
+                
+                return this->get_reallocatable_vector_generator(casted);
+
+            }
+
     };  
+
+    class IDGenerator{
+
+        public:
+
+            template <class ID>
+            auto get_temp_storage(size_t n, ID){
+
+                return std::make_shared<StandardExponentialLinearTempStorageGenerator<ID>>(n);
+
+            }
+
+            template <class ID>
+            auto get_dangling_op_vec_default_init_gen(ID){
+
+                return std::make_shared<StandardDanglingDefaultInitOperatableVectorGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_stack_allocated_addable_vector_gen(ID){
+
+                return std::make_shared<StackAllocatedAddableVectorGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_dangling_op_vec_gen(ID){
+
+                return std::make_shared<StandardDanglingOperatableVectorGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_dangling_read_vec_gen(ID){
+
+                return std::make_shared<StandardVectorReadableGenerator<ID>>();
+
+            } 
+
+            template <class ID>
+            auto get_dangling_stack_read_vec_gen(ID){
+
+                return std::make_shared<StandardStackVectorReadableGenerator<ID>>();
+
+            } 
+
+            template <class ID>
+            auto get_vector_splitter(ID){
+
+                return std::make_shared<VectorReadableSplitter<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_boolvector_view_caster(ID){
+
+                return std::make_shared<caster::plm_boolvector::StandardBoolVectorViewCaster<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_boolvector_op_caster(ID){
+
+                return std::make_shared<caster::plm_boolvector::StandardBoolVectorOpCaster<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_dynamic_bit_or_writer_gen(ID){
+                
+                return std::make_shared<DynamicBitIterEmptyWriterGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_dynamic_bit_replace_writer_gen(ID){
+                
+                return std::make_shared<DynamicBitIterReplaceWriterGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_bit_empty_writer_gen(ID){
+
+                return std::make_shared<BitIterEmptyWriterGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_dynamic_bit_iter_gen(ID){
+
+                return std::make_shared<StandardDynamicBitIteratorGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_bit_iter_gen(ID){
+
+                return std::make_shared<StandardBitIteratorGenerator<ID>>();
+
+            }
+
+            template <class T, class ID>
+            auto get_reallocatable_vector_generator(std::shared_ptr<memory::linear::Reallocatable<T>> allocator, ID){
+
+                return std::make_shared<ReallocatableVectorGenerator<T, ID>>(allocator);
+
+            }
+
+            template <class T, class ID>
+            auto get_temp_gen_realloc_vector_generator(std::shared_ptr<TempStorageGeneratable<T>> temp_storage, ID id_){ // warning: vector and generator obj coexists 
+
+                auto wrapper = std::make_shared<TempStorageAllocator<T>>(temp_storage);
+                auto casted = wrapper->to_reallocatable_sp(wrapper);
+                
+                return this->get_reallocatable_vector_generator(casted, id_);
+
+            }
+
+    };  
+
 
 }
 

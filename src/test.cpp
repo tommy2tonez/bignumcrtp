@@ -158,7 +158,6 @@ int main(){
 
         } else{
             
-            assert(false);
             std::cout << splitted[0] << std::endl;
             std::cout << splitted[1] << " " << splitted[2] << " " << splitted[3] << std::endl;
 
