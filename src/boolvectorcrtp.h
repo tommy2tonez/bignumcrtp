@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <memory>
 #include <iostream>
-#include "CircularBuffer.h"
 
 namespace algorithm::memory{
 
@@ -144,10 +143,6 @@ namespace algorithm::memory{
 }
 
 namespace datastructure{
-
-    inline static const int CIRCULAR_BUFFER_LENGTH = 2000;
-    inline static const int EXPECTED_BUFFER_LENGTH = 50;
-    inline static memory::circularbuffer::CircularBuffer very_undefined(CIRCULAR_BUFFER_LENGTH, EXPECTED_BUFFER_LENGTH);
 
     template <class T>
     class UnalignedViewableBoolVector{

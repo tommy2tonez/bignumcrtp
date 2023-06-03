@@ -80,10 +80,12 @@ void test___(memory::pointer::stack_shared_ptr<memory::sizet_linear::TempStorage
 int main(){
         
     size_t n = 0;
+    std::string inp;
     ResourceInitiator(1);
 
     auto allocator = memory::sizet_linear::StandardGenerator().get_temp_storage(1024);
     auto casted_allocator = allocator->to_temp_storage_generatable_sp(allocator);
+    auto arith_ = bignum::vector::mutable_operation::IDArithmeticOperatorGenerator().get_plus(A());
     auto arith = bignum::integer::usgn::mutable_operation::IDArithmeticOperatorGenerator().get_arithmetic(casted_allocator, A());
     std::cout << &*allocator << "<temp storage addr>" << std::endl;
 
@@ -99,8 +101,8 @@ int main(){
         auto start = steady_clock().now();
 
         for (size_t i = 0; i < n; ++i){
-
-            num += num;
+            
+            num += inc;
 
         }
         

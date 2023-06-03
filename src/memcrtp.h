@@ -32,7 +32,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<Allocatable<T>> to_allocatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<Allocatable<T>>(data); 
+                    return std::static_pointer_cast<Allocatable<T>>(data); 
 
                 }
 
@@ -52,7 +52,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<Reallocatable<T>> to_reallocatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<Reallocatable<T>>(data); 
+                    return std::static_pointer_cast<Reallocatable<T>>(data); 
 
                 }
 
@@ -72,7 +72,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<AlignedAllocatable<T>> to_aligned_allocatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<AlignedAllocatable<T>>(data); 
+                    return std::static_pointer_cast<AlignedAllocatable<T>>(data); 
 
                 }
 
@@ -252,39 +252,16 @@ namespace memory{
         };
 
         template <class T>
-        class StackAllocatedOperatableVector: public OperatableVector<StackAllocatedOperatableVector<T>>, public StackAllocatedVectorReadable<T>{
+        class StackAllocatedOperatableVector: public OperatableVector<T>, public StackAllocatedVectorReadable<StackAllocatedOperatableVector<T>>{
 
             public:
 
-                size_t get(size_t idx){
-
-                    return static_cast<T*>(this)->get(idx); 
-
-                }
-
-                size_t length(){
-
-                    return static_cast<T*>(this)->length();
-
-                } 
-
-                void * get_data(){
-
-                    return static_cast<T*>(this)->get_data();
-
-                }
-
-                size_t sizeof_slot(){
-
-                    return StackAllocatedVectorReadable<T>::sizeof_slot();
-
-                }
-
-                VectorReadable<T> * to_vector_readable(){
-
-                    return this;
-                    
-                }
+                using OperatableVector<T>::get;
+                using OperatableVector<T>::length;
+                using OperatableVector<T>::get_data;
+                using OperatableVector<T>::sizeof_slot;
+                using OperatableVector<T>::to_vector_readable;
+                using OperatableVector<T>::to_operatable_vector;
 
         };
 
@@ -333,39 +310,15 @@ namespace memory{
         };
 
         template <class T>
-        class StackAllocatedReallocatableOperatableVector: public ReallocatableOperatableVector<T>, public StackAllocatedVectorReadable<T>{
+        class StackAllocatedReallocatableOperatableVector: public ReallocatableOperatableVector<T>, public StackAllocatedVectorReadable<StackAllocatedReallocatableOperatableVector<T>>{
                 
             public:
-
-                size_t get(size_t idx){
-
-                    return static_cast<T*>(this)->get(idx); 
-
-                }
-
-                size_t length(){
-
-                    return static_cast<T*>(this)->length();
-
-                } 
-
-                void * get_data(){
-
-                    return static_cast<T*>(this)->get_data();
-
-                }
-
-                size_t sizeof_slot(){
-
-                    return StackAllocatedVectorReadable<T>::sizeof_slot();
-
-                }
-
-                VectorReadable<T> * to_vector_readable(){
-
-                    return this;
-                    
-                }
+                
+                using ReallocatableOperatableVector<T>::get;
+                using ReallocatableOperatableVector<T>::length;
+                using ReallocatableOperatableVector<T>::get_data;
+                using ReallocatableOperatableVector<T>::sizeof_slot;
+                using ReallocatableOperatableVector<T>::to_vector_readable;
 
         };
 
@@ -405,7 +358,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<TempStorageGeneratable<T>> to_temp_storage_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<TempStorageGeneratable<T>>(data); 
+                    return std::static_pointer_cast<TempStorageGeneratable<T>>(data); 
 
                 }
 
@@ -431,7 +384,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<DanglingOperatableVectorGeneratable<T>> to_dangling_operatable_vector_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<DanglingOperatableVectorGeneratable<T>>(data);
+                    return std::static_pointer_cast<DanglingOperatableVectorGeneratable<T>>(data);
 
                 }
 
@@ -458,7 +411,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<VectorReadableGeneratable<T>> to_vector_readable_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<VectorReadableGeneratable<T>>(data); 
+                    return std::static_pointer_cast<VectorReadableGeneratable<T>>(data); 
 
                 }
 
@@ -478,7 +431,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<ReallocatableVectorGeneratable<T>> to_reallocatable_vector_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<ReallocatableVectorGeneratable<T>>(data); 
+                    return std::static_pointer_cast<ReallocatableVectorGeneratable<T>>(data); 
 
                 }
 
@@ -501,7 +454,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<StackVectorReadableGeneratable<T>> to_stack_vector_readable_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<StackVectorReadableGeneratable<T>>(data); 
+                    return std::static_pointer_cast<StackVectorReadableGeneratable<T>>(data); 
 
                 }
 
@@ -521,7 +474,7 @@ namespace memory{
                 template<class T1>
                 std::shared_ptr<AddableVectorGeneratable<T>> to_addable_vector_generatable(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<AddableVectorGeneratable<T>>(data); 
+                    return std::static_pointer_cast<AddableVectorGeneratable<T>>(data); 
 
                 }
 
@@ -576,7 +529,7 @@ namespace memory{
                 template <class T1>
                 std::shared_ptr<DynamicBitIteratorGeneratable<T>> to_dynamic_bit_iterator_generatable_sp(std::shared_ptr<T1> data){
 
-                    return std::dynamic_pointer_cast<DynamicBitIteratorGeneratable<T>>(data); 
+                    return std::static_pointer_cast<DynamicBitIteratorGeneratable<T>>(data); 
 
                 } 
 
@@ -611,7 +564,7 @@ namespace memory{
                 template <class T2>
                 std::shared_ptr<BitIteratorGeneratable<T>> to_bit_iterator_generatable_sp(std::shared_ptr<T2> data){
 
-                    return std::dynamic_pointer_cast<BitIteratorGeneratable<T>>(data);
+                    return std::static_pointer_cast<BitIteratorGeneratable<T>>(data);
 
                 }
 
@@ -658,7 +611,7 @@ namespace memory{
                 template <class T2>
                 std::shared_ptr<DynamicBitIterWriterGeneratable<T>> to_dynamic_bit_iter_writer_generatable_sp(std::shared_ptr<T2> data){
 
-                    return std::dynamic_pointer_cast<DynamicBitIterWriterGeneratable<T>>(data);
+                    return std::static_pointer_cast<DynamicBitIterWriterGeneratable<T>>(data);
 
                 }
 
@@ -2875,7 +2828,9 @@ namespace memory::sizet_linear{
             }
 
             size_t read(size_t * data, size_t bit_idx, size_t read_length){
-                                
+                
+                assert(read_length != 0);
+
                 const uint8_t MIN_BIT_IDX = 0;
                 const uint8_t MAX_BIT_IDX = BIT_WIDTH - 1;
 
@@ -2934,9 +2889,6 @@ namespace memory::sizet_linear{
 
             bool next(size_t& rs, size_t read_length){ 
 
-                assert(read_length <= BIT_WIDTH);
-                assert(this->data != nullptr);
-
                 size_t total_length = this->data->length() * BIT_WIDTH; 
                 
                 if (this->idx >= total_length){
@@ -2990,10 +2942,6 @@ namespace memory::sizet_linear{
 
             bool next(size_t& rs, size_t read_length){ 
 
-                assert(read_length <= BIT_WIDTH);
-                assert(read_length > 0);
-                assert(this->data != nullptr);
-
                 if (this->idx < 0){
 
                     return false; 
@@ -3002,7 +2950,7 @@ namespace memory::sizet_linear{
 
                 size_t real_read_length = std::min(this->idx + 1, (intmax_t) read_length); 
                 this->idx -= real_read_length; 
-                rs = this->read(data->get_data(), this->idx + 1, real_read_length); 
+                rs = this->read((size_t *) data->get_data(), this->idx + 1, real_read_length); 
 
                 return true;
 
@@ -3049,6 +2997,27 @@ namespace memory::sizet_linear{
             DynamicBitIterator<T> get(VectorReadable<T>& data, size_t offset){
 
                 return DynamicBitIterator<T>(&data, offset);
+
+            }
+
+    };
+
+    template <class ID>
+    class ReverseDynamicBitIteratorGenerator: public DynamicBitIteratorGeneratable<ReverseDynamicBitIteratorGenerator<ID>>{
+
+        public:
+
+            template <class T>
+            ReverseDynamicBitIterator<T> get(VectorReadable<T>& data){
+
+                return ReverseDynamicBitIterator<T>(&data);
+
+            }
+
+            template <class T>
+            ReverseDynamicBitIterator<T> get(VectorReadable<T>& data, size_t offset){
+
+                return ReverseDynamicBitIterator<T>(&data, offset);
 
             }
 
@@ -3156,53 +3125,21 @@ namespace memory::sizet_linear{
             }
 
     };
-
+    
     template <class T>
-    class DynamicBitIterReplaceWriter: public DynamicBitIterWritable<DynamicBitIterReplaceWriter<T>>{
+    class DynamicBitIterReplaceWriterBase{
 
-        private:
+        protected:
 
             OperatableVector<T> * data;
-            size_t idx;
-        
-        public:
+            intmax_t idx;
 
-            DynamicBitIterReplaceWriter(){
-
-                this->data = nullptr;
-                this->idx = 0;
-
-            }
-
-            DynamicBitIterReplaceWriter(OperatableVector<T> * data, size_t offset){
+            DynamicBitIterReplaceWriterBase(OperatableVector<T> * data, intmax_t idx){
 
                 this->data = data;
-                this->idx = offset;
+                this->idx = idx;
 
             }
-
-            bool write(size_t val, size_t write_length){
-                
-                assert(write_length <= BIT_WIDTH);
-                assert(this->data != nullptr);
-
-                size_t total_length = this->data->length() * BIT_WIDTH;
-                
-                if (this->idx >= total_length){
-                    
-                    return false;
-
-                }
-                
-                write_length = std::min(total_length - this->idx, write_length);
-                this->write(val, this->idx, write_length);
-                this->idx += write_length;
-
-                return true; 
-
-            }
-        
-        private:
 
             size_t get_extractor(size_t length){
 
@@ -3216,14 +3153,21 @@ namespace memory::sizet_linear{
 
             } 
 
-            size_t get_eraser(size_t length){
+            size_t get_erasor(size_t length){
 
                 return this->get_extractor(BIT_WIDTH - length) << length;
 
             }
 
-            void write(size_t val, size_t bob_idx, size_t length){
+            size_t get_erasor(size_t idx, size_t length){
 
+                return std::numeric_limits<size_t>::max() ^ (this->get_extractor(length) << idx);
+
+
+            }
+
+            void write(size_t val, size_t bob_idx, size_t length){
+                                
                 val = val & this->get_extractor(length); 
 
                 size_t eor_idx = bob_idx + length - 1;
@@ -3234,7 +3178,7 @@ namespace memory::sizet_linear{
 
                 if (bob_slot == eor_slot){
                     
-                    size_t erasor = this->get_extractor(bob_offset);
+                    size_t erasor = this->get_erasor(bob_offset, length);
                     this->data->set(bob_slot, (this->data->get(bob_slot) & erasor) | (val << bob_offset));
 
                     return;
@@ -3244,7 +3188,7 @@ namespace memory::sizet_linear{
                 size_t lo_length = BIT_WIDTH - bob_offset;
                 size_t hi_length = length - lo_length;
                 size_t lo_erasor = this->get_extractor(bob_offset);
-                size_t hi_erasor = this->get_eraser(hi_length); 
+                size_t hi_erasor = this->get_erasor(hi_length); 
 
                 size_t lo_val = this->get_extractor(lo_length) & val;
                 size_t lo_adjusted_val = (this->data->get(bob_slot) & lo_erasor) | (lo_val << bob_offset);
@@ -3252,6 +3196,66 @@ namespace memory::sizet_linear{
 
                 this->data->set(bob_slot, lo_adjusted_val);
                 this->data->set(eor_slot, hi_adjusted_val);
+
+            }
+    };
+
+    template <class T>
+    class DynamicBitIterReplaceWriter: public DynamicBitIterWritable<DynamicBitIterReplaceWriter<T>>,
+                                       private DynamicBitIterReplaceWriterBase<T>{
+
+
+        public:
+
+            DynamicBitIterReplaceWriter(): DynamicBitIterReplaceWriterBase<T>(nullptr, 0){}
+
+            DynamicBitIterReplaceWriter(OperatableVector<T> * data, size_t idx): DynamicBitIterReplaceWriterBase<T>(data, idx){}
+
+            bool write(size_t val, size_t write_length){
+                
+                size_t total_length = this->data->length() * BIT_WIDTH;
+                
+                if (this->idx >= total_length){
+                    
+                    return false;
+
+                }
+                
+                write_length = std::min(total_length - this->idx, write_length);
+                DynamicBitIterReplaceWriterBase<T>::write(val, this->idx, write_length);
+                this->idx += write_length;
+
+                return true; 
+
+            }
+
+    };
+
+    template <class T>
+    class ReverseDynamicBitIterReplaceWriter: public DynamicBitIterWritable<ReverseDynamicBitIterReplaceWriter<T>>, 
+                                              private DynamicBitIterReplaceWriterBase<T>{
+
+        public:
+
+            ReverseDynamicBitIterReplaceWriter() : DynamicBitIterReplaceWriterBase<T>(nullptr, -1){}
+
+            ReverseDynamicBitIterReplaceWriter(OperatableVector<T> * data): DynamicBitIterReplaceWriterBase<T>(data, data->length() * BIT_WIDTH - 1){}
+
+            ReverseDynamicBitIterReplaceWriter(OperatableVector<T> * data, size_t idx): DynamicBitIterReplaceWriterBase<T>(data, idx){}
+
+            bool write(size_t val, size_t write_length){
+
+                if (this->idx < 0){
+
+                    return false; 
+
+                }
+
+                size_t real_write_length = std::min(this->idx + 1, (intmax_t) write_length); 
+                this->idx -= real_write_length; 
+                DynamicBitIterReplaceWriterBase<T>::write(val, this->idx + 1, real_write_length); 
+
+                return true;
 
             }
 
@@ -3326,6 +3330,20 @@ namespace memory::sizet_linear{
             DynamicBitIterReplaceWriter<T> get(OperatableVector<T>& data, size_t offset){ 
 
                 return DynamicBitIterReplaceWriter<T>(&data, offset);
+
+            }
+
+    };
+
+    template <class ID>
+    class ReverseDynamicBitIterReplaceWriterGenerator: public DynamicBitIterWriterGeneratable<ReverseDynamicBitIterReplaceWriterGenerator<ID>>{
+
+        public:
+
+            template<class T>
+            ReverseDynamicBitIterReplaceWriter<T> get(OperatableVector<T>& data, size_t offset){ 
+
+                return ReverseDynamicBitIterReplaceWriter<T>(&data, offset);
 
             }
 
@@ -3420,6 +3438,12 @@ namespace memory::sizet_linear{
 
             }
 
+            auto get_reverse_dynamic_bit_replace_write_gen(){
+
+                return std::make_shared<ReverseDynamicBitIterReplaceWriterGenerator<GenericID>>();
+
+            }
+
             auto get_bit_empty_writer_gen(){
 
                 return std::make_shared<BitIterEmptyWriterGenerator<GenericID>>();
@@ -3429,6 +3453,12 @@ namespace memory::sizet_linear{
             auto get_dynamic_bit_iter_gen(){
 
                 return std::make_shared<StandardDynamicBitIteratorGenerator<GenericID>>();
+
+            }
+
+            auto get_reverse_dynamic_bit_iter_gen(){
+
+                return std::make_shared<ReverseDynamicBitIteratorGenerator<GenericID>>();
 
             }
 
@@ -3539,6 +3569,13 @@ namespace memory::sizet_linear{
             }
 
             template <class ID>
+            auto get_reverse_dynamic_bit_replace_write_gen(ID){
+
+                return std::make_shared<ReverseDynamicBitIterReplaceWriterGenerator<ID>>();
+
+            }
+
+            template <class ID>
             auto get_bit_empty_writer_gen(ID){
 
                 return std::make_shared<BitIterEmptyWriterGenerator<ID>>();
@@ -3549,6 +3586,13 @@ namespace memory::sizet_linear{
             auto get_dynamic_bit_iter_gen(ID){
 
                 return std::make_shared<StandardDynamicBitIteratorGenerator<ID>>();
+
+            }
+
+            template <class ID>
+            auto get_reverse_dynamic_bit_iter_gen(ID){
+
+                return std::make_shared<ReverseDynamicBitIteratorGenerator<ID>>();
 
             }
 
