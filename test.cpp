@@ -1,5 +1,7 @@
 #include <iostream>
 #include <vector>
+#include "src/memcrtp.h"
+#include <iostream>
 
 template <class T>
 class A{
@@ -42,11 +44,21 @@ class C{
 
 };
 
+constexpr memory::sizet_linear::StandardStackAllocatedVector<1> get_incrementor(){
+    
+    memory::sizet_linear::StandardStackAllocatedVector<1> inc;
+    inc.resize_no_copy(1);
+    inc.set(0, 1);
+
+    return inc;
+
+} 
+
 int main(){
 
-    decltype(B::get_type()) b = 2;
+    auto rs = get_incrementor();
 
-    std::cout << C<decltype(B::get_type())>::val; 
+    std::cout << rs.to_vector_readable()->get(0) << std::endl;
 
 }
 

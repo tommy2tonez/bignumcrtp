@@ -1823,31 +1823,31 @@ namespace memory::sizet_linear{
         
         public:
 
-            StandardStackAllocatedVector(){
+            constexpr StandardStackAllocatedVector(){
 
                 this->sz = 0;
 
             }
 
-            StandardStackAllocatedVector(const StandardStackAllocatedVector& obj){
+            constexpr StandardStackAllocatedVector(const StandardStackAllocatedVector& obj){
 
                 *this = obj;
 
             }
 
-            StandardStackAllocatedVector(StandardStackAllocatedVector&& obj){
+            constexpr StandardStackAllocatedVector(StandardStackAllocatedVector&& obj){
 
                 *this = obj;
 
             }
 
-            StandardStackAllocatedVector& operator = (StandardStackAllocatedVector&& obj){
+            constexpr StandardStackAllocatedVector& operator = (StandardStackAllocatedVector&& obj){
                 
                 return *this = obj;
 
             }
 
-            StandardStackAllocatedVector& operator = (const StandardStackAllocatedVector& obj){
+            constexpr StandardStackAllocatedVector& operator = (const StandardStackAllocatedVector& obj){
                 
                 this->sz = obj.sz;
                 
@@ -1861,31 +1861,31 @@ namespace memory::sizet_linear{
 
             }
 
-            size_t get(size_t idx){
+            constexpr size_t get(size_t idx){
 
                 return this->data[idx];
 
             }
 
-            void set(size_t idx, size_t val){
+            constexpr void set(size_t idx, size_t val){
 
                 this->data[idx] = val;
 
             }
 
-            size_t length(){
+            constexpr size_t length(){
 
                 return this->sz;
 
             }
 
-            void * get_data(){
+            constexpr void * get_data(){
 
                 return this->data; 
 
             }
 
-            void resize(size_t sz){
+            constexpr void resize(size_t sz){
 
                 assert(sz <= CAP);
 
@@ -1893,7 +1893,7 @@ namespace memory::sizet_linear{
 
             }
 
-            void resize_no_copy(size_t sz){
+            constexpr void resize_no_copy(size_t sz){
 
                 assert(sz <= CAP);
 
