@@ -5,109 +5,59 @@
 #include "assert.h"
 #include <vector>
 #include "BigNum.h"
+#include <random>
 
 using namespace std::chrono;
 using namespace bignum::integer::usgn;
+using namespace memory::sizet_linear;
 
-template <unsigned T>
-void print(){
+dgstd::BigUINT randomize(size_t sz){
 
-    std::cout << T << std::endl;
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<size_t> dis;
 
-}
+    dgstd::BigUINT rs = 1;
+    const size_t MAX_VAL = (1ULL << 62) - 1; 
 
-class C{
+    for (size_t i = 0; i < sz; ++i){
 
-};
+        rs <<= 62;
+        rs += dis(gen) % MAX_VAL;
 
-class A{
+    }
 
-    public:
-        A(size_t data){
-
-        }
-        A() = default;
-
-        ~A(){  
-            std::cout << "destruct called" << std::endl;
-        }
-        A(A& data){
-            std::cout << "copy called" << std::endl;
-        }
-
-        A(A&& data){
-            std::cout << "moved called" << std::endl;
-        }
-        
-        A& operator = (A&& data){
-            std::cout << "moved called" << std::endl;
-
-            return *this;
-            
-        }
-
-        void print(){
-        }
-
-};
-
-class B: public A{
-
-    public:
-
-        B(size_t data): A(data){
-
-        }
-
-};
-
-template <class ...Args>
-void test_(Args&& ...obj){
-
-}
-
-void test__(memory::pointer::stack_shared_ptr<C> temp){
-
+    return rs;
+    
 } 
 
-template <class T>
-void test___(memory::pointer::stack_shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> casted){
-
-    std::cout << "yay" << std::endl;
-
-}
-
 int main(){
-        
-    size_t n = 0;
+
+    size_t x = 0;
+    size_t x1 = 0;
+
     std::string inp;
     ResourceInitiator(1);
 
-    auto allocator = memory::sizet_linear::StandardGenerator().get_temp_storage(1024);
-    auto casted_allocator = allocator->to_temp_storage_generatable_sp(allocator);
-    auto arith_ = bignum::vector::mutable_operation::IDArithmeticOperatorGenerator().get_plus(A());
-    auto arith = bignum::integer::usgn::mutable_operation::IDArithmeticOperatorGenerator().get_arithmetic(casted_allocator, A());
-    std::cout << &*allocator << "<temp storage addr>" << std::endl;
-
-    dgstd::StackBigUINT<3> inc(1);
-
     while (true){
         
-        dgstd::StackBigUINT<3> num(1);
+        std::cout << "x:";
+        std::cin >> x;
+        
+        std::cout << "x1:";
+        std::cin >> x1;
 
-        std::cout << "enter n: ";
-        std::cin >> n;
+        dgstd::BigUINT val = 1;
+        dgstd::BigUINT val2 = 1;
+
+        val <<= (1ULL << x);
+        val2 <<= (1ULL << x1);
         
         auto start = steady_clock().now();
+        auto val3 = val / val2;
+        auto lapsed = duration_cast<milliseconds>(steady_clock().now() - start).count();
 
-        for (size_t i = 0; i < n; ++i){
-            
-            num += inc;
-
-        }
-        
-        std::cout << num.to_string() << std::endl;
-        std::cout << duration_cast<milliseconds>(steady_clock().now() - start).count() << "<lapsed>" << std::endl;
+        std::cout << val3.length() << "<length>" << lapsed << "<milliseconds>" << std::endl;
         
     }
     

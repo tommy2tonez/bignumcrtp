@@ -498,10 +498,11 @@ namespace memory{
         class DynamicBitIterable{
             
             public:
+                
+                template <class T1>
+                bool next(VectorReadable<T1>& data, size_t& rs, size_t read_sz){
 
-                bool next(size_t& data, size_t read_sz){
-
-                    return static_cast<T*>(this)->next(data, read_sz);
+                    return static_cast<T*>(this)->next(data, rs, read_sz);
 
                 }
 
@@ -512,17 +513,15 @@ namespace memory{
 
             public:
 
-                template <class T1>
-                auto get(VectorReadable<T1>& data){ // -> DynamicBitIterable<>&
+                auto get(){ // -> DynamicBitIterable<>&
 
-                    return static_cast<T*>(this)->get(data); 
+                    return static_cast<T*>(this)->get(); 
 
                 }
 
-                template <class T1>
-                auto get(VectorReadable<T1>& data, size_t offset){ // -> DynamicBitIterable<>&
+                auto get(size_t offset){ // -> DynamicBitIterable<>&
 
-                    return static_cast<T*>(this)->get(data, offset);
+                    return static_cast<T*>(this)->get(offset);
 
                 }
 
@@ -537,60 +536,14 @@ namespace memory{
         };
         
         template<class T>
-        class BitIterable{
-
-            public:
-
-                bool next(size_t& data){
-
-                    return static_cast<T*>(this)->next(data);
-
-                }
-
-        };
-
-        template<class T>
-        class BitIteratorGeneratable{
-
-            public:
-
-                template <class T2>
-                auto get(VectorReadable<T2>& data, size_t n){ // -> BitIterable&
-
-                    return static_cast<T*>(this)->get(data, n);
-
-                } 
-
-                template <class T2>
-                std::shared_ptr<BitIteratorGeneratable<T>> to_bit_iterator_generatable_sp(std::shared_ptr<T2> data){
-
-                    return std::static_pointer_cast<BitIteratorGeneratable<T>>(data);
-
-                }
-
-        };
-        
-        template<class T>
         class DynamicBitIterWritable{
 
             public:
 
-                bool write(size_t data, size_t write_sz){
+                template <class T1>
+                bool write(OperatableVector<T1>& data, size_t write_val, size_t write_sz){
 
-                    return static_cast<T*>(this)->write(data, write_sz);
-
-                }
-
-        };
-
-        template<class T>
-        class BitIterWritable{
-
-            public:
-
-                bool write(size_t data){
-
-                    return static_cast<T*>(this)->write(data); 
+                    return static_cast<T*>(this)->write(data, write_val, write_sz);
 
                 }
 
@@ -601,10 +554,9 @@ namespace memory{
 
             public:
 
-                template<class T2>
-                auto get(OperatableVector<T2>& data, size_t offset){ // -> DynamicBitIterWritable&
+                auto get(size_t offset){ // -> DynamicBitIterWritable&
 
-                    return static_cast<T*>(this)->get(data, offset);
+                    return static_cast<T*>(this)->get(offset);
 
                 } 
                 
@@ -616,20 +568,6 @@ namespace memory{
                 }
 
 
-        };
-
-        template<class T>
-        class BitIterWriterGeneratable{
-
-            public:
-
-                template<class T2>
-                auto get(OperatableVector<T2>& data , size_t sz){ // -> BitIterWritable&
-
-                    return static_cast<T*>(this)->get(data, sz);
-
-                } 
-                
         };
 
         namespace caster{
@@ -1509,8 +1447,8 @@ namespace dgstd{
 
 namespace memory::sizet_linear{
 
-    inline static const uint8_t DEFAULT_VAL = 0;
-    inline static const uint8_t BIT_WIDTH = sizeof(size_t) * 8; 
+    inline static const size_t DEFAULT_VAL = 0;
+    inline static const size_t BIT_WIDTH = sizeof(size_t) * 8; 
 
     class StandardVectorView: public VectorReadable<StandardVectorView>{
 
@@ -2827,28 +2765,21 @@ namespace memory::sizet_linear{
 
             }
 
-            size_t read(size_t * data, size_t bit_idx, size_t read_length){
+            template <class T>
+            size_t read(VectorReadable<T>& data, size_t bob_slot, size_t bob_offset, size_t eor_slot, size_t eor_offset){
                 
-                assert(read_length != 0);
-
-                const uint8_t MIN_BIT_IDX = 0;
-                const uint8_t MAX_BIT_IDX = BIT_WIDTH - 1;
-
-                size_t eor = bit_idx + read_length - 1;  
-                size_t bob_slot = bit_idx / BIT_WIDTH;
-                size_t eor_slot = eor / BIT_WIDTH;
-                size_t bob_offset = bit_idx % BIT_WIDTH;
-                size_t eor_offset = eor % BIT_WIDTH;
+                const size_t MIN_BIT_IDX = 0;
+                const size_t MAX_BIT_IDX = BIT_WIDTH - 1;
 
                 if (bob_slot == eor_slot){
 
-                    return this->extract(data[bob_slot], bob_offset, eor_offset);
+                    return this->extract(data.get(bob_slot), bob_offset, eor_offset);
 
                 } 
 
                 size_t delta = BIT_WIDTH - bob_offset; 
-                size_t eor_data = this->extract(data[eor_slot], MIN_BIT_IDX, eor_offset);
-                size_t bob_data = this->extract(data[bob_slot], bob_offset, MAX_BIT_IDX);
+                size_t eor_data = this->extract(data.get(eor_slot), MIN_BIT_IDX, eor_offset);
+                size_t bob_data = this->extract(data.get(bob_slot), bob_offset, MAX_BIT_IDX);
 
                 return (eor_data << delta) | bob_data;  
 
@@ -2856,50 +2787,66 @@ namespace memory::sizet_linear{
 
     };
 
-    template <class T>
-    class DynamicBitIterator: public DynamicBitIterable<DynamicBitIterator<T>>, protected BitIteratorBase{
+    class DynamicBitIterator: public DynamicBitIterable<DynamicBitIterator>, protected BitIteratorBase{
 
         private:
 
-            VectorReadable<T> * data;
-            size_t idx;
+            size_t bob_slot;
+            size_t bob_offset;
         
         public:
 
             DynamicBitIterator(){
 
-                this->data = nullptr;
-                this->idx = 0;
+                this->bob_slot = 0;
+                this->bob_offset = 0;
 
             }
 
-            DynamicBitIterator(VectorReadable<T> * data){
+            DynamicBitIterator(size_t offset){
 
-                this->data = data;
-                this->idx = 0;
-
-            }
-
-            DynamicBitIterator(VectorReadable<T> * data, size_t offset){
-
-                this->data = data;
-                this->idx = offset;
+                this->bob_slot = offset / BIT_WIDTH;
+                this->bob_offset = offset % BIT_WIDTH;
 
             }
 
-            bool next(size_t& rs, size_t read_length){ 
-
-                size_t total_length = this->data->length() * BIT_WIDTH; 
+            template <class T>
+            bool next(VectorReadable<T>& data, size_t& rs, size_t read_length){ 
                 
-                if (this->idx >= total_length){
+                if (this->bob_slot >= data.length()){
 
                     return false;
 
                 }
 
-                size_t real_read_length = std::min(read_length, total_length - this->idx);
-                rs = this->read((size_t *) this->data->get_data(), this->idx, real_read_length);
-                this->idx += real_read_length;
+                size_t eor_slot = this->bob_slot;
+                size_t eor_offset = this->bob_offset + read_length - 1;
+
+                if (eor_offset >= BIT_WIDTH){
+
+                    ++eor_slot;
+                    eor_offset -= BIT_WIDTH;
+
+                    if (eor_slot == data.length()){
+
+                        eor_slot -= 1;
+                        eor_offset = BIT_WIDTH - 1;
+
+                    }
+
+                } 
+
+                rs = this->read(data, this->bob_slot, this->bob_offset, eor_slot, eor_offset);
+                
+                this->bob_slot = eor_slot;
+                this->bob_offset = eor_offset + 1;
+
+                if (this->bob_offset >= BIT_WIDTH){
+
+                    ++this->bob_slot;
+                    this->bob_offset -= BIT_WIDTH;
+
+                }
                 
                 return true;
 
@@ -2907,78 +2854,71 @@ namespace memory::sizet_linear{
 
     };
 
-    template <class T>
-    class ReverseDynamicBitIterator: public DynamicBitIterable<ReverseDynamicBitIterator<T>>, protected BitIteratorBase{
+    class ReverseDynamicBitIterator: public DynamicBitIterable<ReverseDynamicBitIterator>, protected BitIteratorBase{
 
         private:
 
-            VectorReadable<T> * data;
-            intmax_t idx;
+            intmax_t bob_slot;
+            intmax_t bob_offset;
         
         public:
 
             ReverseDynamicBitIterator(){
 
-                this->data = nullptr;
-                this->idx = -1;
+                this->bob_slot = -1;
+                this->bob_offset = 0;
 
             }
 
-            ReverseDynamicBitIterator(VectorReadable<T> * data){
+            ReverseDynamicBitIterator(size_t idx){
 
-                assert(data->length() != 0);
-
-                this->data = data;
-                this->idx = data->length() * BIT_WIDTH - 1;
+                this->bob_slot = idx / BIT_WIDTH;
+                this->bob_offset = idx % BIT_WIDTH;
 
             }
 
-            ReverseDynamicBitIterator(VectorReadable<T> * data, size_t idx){
+            template <class T>
+            bool next(VectorReadable<T>& data, size_t& rs, size_t read_length){ 
 
-                this->data = data;
-                this->idx = idx;
-
-            }
-
-            bool next(size_t& rs, size_t read_length){ 
-
-                if (this->idx < 0){
+                if (this->bob_slot < 0){
 
                     return false; 
 
                 }
 
-                size_t real_read_length = std::min(this->idx + 1, (intmax_t) read_length); 
-                this->idx -= real_read_length; 
-                rs = this->read((size_t *) data->get_data(), this->idx + 1, real_read_length); 
+                intmax_t eor_slot = bob_slot;
+                intmax_t eor_offset = this->bob_offset - read_length + 1;
+
+                if (eor_offset < 0){
+
+                    --eor_slot;
+                    eor_offset += BIT_WIDTH;
+
+                    if (eor_slot == -1){
+
+                        eor_slot = 0;
+                        eor_offset = 0;
+
+                    }
+
+                } 
+
+                rs = this->read(data, eor_slot, eor_offset, this->bob_slot, this->bob_offset);
+                
+                this->bob_slot = eor_slot;
+                this->bob_offset = eor_offset - 1;
+
+                if (bob_offset < 0){
+
+                    --this->bob_slot;
+                    this->bob_offset += BIT_WIDTH;
+
+                }
 
                 return true;
 
             }
 
-    };
-
-    template <class T>
-    class StandardBitIterator: public DynamicBitIterator<T>, public BitIterable<StandardBitIterator<T>>{
-
-        private:
-
-            size_t read_length;
-        
-        public:
-
-            StandardBitIterator(VectorReadable<T> * data, size_t read_length): DynamicBitIterator<T>(data){
-
-                this->read_length = read_length;
-
-            }
-
-            bool next(size_t& rs){ 
-
-                return DynamicBitIterator<T>::next(rs, this->read_length);
-
-            }
-  
     };
 
     template <class ID>
@@ -2986,17 +2926,15 @@ namespace memory::sizet_linear{
 
         public:
 
-            template <class T>
-            DynamicBitIterator<T> get(VectorReadable<T>& data){
+            DynamicBitIterator get(){
 
-                return DynamicBitIterator<T>(&data);
+                return DynamicBitIterator();
 
             }
 
-            template <class T>
-            DynamicBitIterator<T> get(VectorReadable<T>& data, size_t offset){
+            DynamicBitIterator get(size_t offset){
 
-                return DynamicBitIterator<T>(&data, offset);
+                return DynamicBitIterator(offset);
 
             }
 
@@ -3007,76 +2945,81 @@ namespace memory::sizet_linear{
 
         public:
 
-            template <class T>
-            ReverseDynamicBitIterator<T> get(VectorReadable<T>& data){
+            ReverseDynamicBitIterator get(){
 
-                return ReverseDynamicBitIterator<T>(&data);
-
-            }
-
-            template <class T>
-            ReverseDynamicBitIterator<T> get(VectorReadable<T>& data, size_t offset){
-
-                return ReverseDynamicBitIterator<T>(&data, offset);
+                return ReverseDynamicBitIterator();
 
             }
 
-    };
+            ReverseDynamicBitIterator get(size_t offset){
 
-    template <class ID>
-    class StandardBitIteratorGenerator: public BitIteratorGeneratable<StandardBitIteratorGenerator<ID>>{
-
-        public:
-
-            template <class T>
-            StandardBitIterator<T> get(VectorReadable<T>& data, size_t read_length){
-
-                return StandardBitIterator<T>(&data, read_length);
+                return ReverseDynamicBitIterator(offset);
 
             }
 
     };
 
-    template <class T>
-    class DynamicBitIterOrWriter: public DynamicBitIterWritable<DynamicBitIterOrWriter<T>>{
+    class DynamicBitIterOrWriter: public DynamicBitIterWritable<DynamicBitIterOrWriter>{
 
         private:
 
-            OperatableVector<T> * data;
-            size_t idx;
+            size_t bob_slot;
+            size_t bob_offset;
         
         public:
 
             DynamicBitIterOrWriter(){
 
-                this->data = nullptr;
-                this->idx = 0;
+                this->bob_slot = 0;
+                this->bob_offset = 0;
 
             }
 
-            DynamicBitIterOrWriter(OperatableVector<T> * data, size_t offset){
+            DynamicBitIterOrWriter(size_t offset){
 
-                this->data = data;
-                this->idx = offset;
+                this->bob_slot = offset / BIT_WIDTH;
+                this->bob_offset = offset % BIT_WIDTH;
 
             }
 
-            bool write(size_t val, size_t write_length){
+            template <class T>
+            bool write(OperatableVector<T>& data, size_t val, size_t write_length){
                 
-                assert(write_length <= BIT_WIDTH);
-                assert(this->data != nullptr);
-
-                size_t total_length = this->data->length() * BIT_WIDTH;
-                
-                if (this->idx >= total_length){
+                if (this->bob_slot >= data.length()){
                     
                     return false;
 
                 }
                 
-                write_length = std::min(total_length - this->idx, write_length);
-                this->write(val, this->idx, write_length);
-                this->idx += write_length;
+                size_t eor_slot = bob_slot;
+                size_t eor_offset = this->bob_offset + write_length - 1;
+
+                if (eor_offset >= BIT_WIDTH){
+
+                    ++eor_slot;
+                    eor_offset -= BIT_WIDTH;
+
+                    if (eor_slot == data.length()){
+
+                        --eor_slot;
+                        eor_offset = BIT_WIDTH - 1;
+                        write_length = BIT_WIDTH - this->bob_offset;
+
+                    }
+
+                }
+
+                this->write(data, val, this->bob_slot, this->bob_offset, eor_slot, eor_offset, write_length);
+                
+                this->bob_slot = eor_slot;
+                this->bob_offset = eor_offset + 1;
+
+                if (this->bob_offset >= BIT_WIDTH){
+
+                    ++this->bob_slot;
+                    this->bob_offset -= BIT_WIDTH;
+
+                }
 
                 return true; 
 
@@ -3096,19 +3039,14 @@ namespace memory::sizet_linear{
 
             } 
 
-            void write(size_t val, size_t bob_idx, size_t length){
+            template <class T>
+            void write(OperatableVector<T>& data, size_t val, size_t bob_slot, size_t bob_offset, size_t eor_slot, size_t eor_offset, size_t length){
 
                 val = val & this->get_extractor(length); 
 
-                size_t eor_idx = bob_idx + length - 1;
-                size_t bob_slot = bob_idx / BIT_WIDTH;
-                size_t bob_offset = bob_idx % BIT_WIDTH;
-                size_t eor_slot = eor_idx / BIT_WIDTH;
-                size_t eor_offset = eor_idx % BIT_WIDTH;
-
                 if (bob_slot == eor_slot){
                     
-                    this->data->set(bob_slot, this->data->get(bob_slot) | (val << bob_offset));
+                    data.set(bob_slot, data.get(bob_slot) | (val << bob_offset));
 
                     return;
 
@@ -3116,30 +3054,19 @@ namespace memory::sizet_linear{
 
                 size_t lo_length = BIT_WIDTH - bob_offset;
                 size_t lo_val = this->get_extractor(lo_length) & val;
-                size_t lo_adjusted_val = this->data->get(bob_slot) | (lo_val << bob_offset);
-                size_t hi_adjusted_val = this->data->get(eor_slot) | (val >> lo_length);
+                size_t lo_adjusted_val = data.get(bob_slot) | (lo_val << bob_offset);
+                size_t hi_adjusted_val = data.get(eor_slot) | (val >> lo_length);
 
-                this->data->set(bob_slot, lo_adjusted_val);
-                this->data->set(eor_slot, hi_adjusted_val);
+                data.set(bob_slot, lo_adjusted_val);
+                data.set(eor_slot, hi_adjusted_val);
 
             }
 
     };
     
-    template <class T>
     class DynamicBitIterReplaceWriterBase{
 
         protected:
-
-            OperatableVector<T> * data;
-            intmax_t idx;
-
-            DynamicBitIterReplaceWriterBase(OperatableVector<T> * data, intmax_t idx){
-
-                this->data = data;
-                this->idx = idx;
-
-            }
 
             size_t get_extractor(size_t length){
 
@@ -3166,20 +3093,15 @@ namespace memory::sizet_linear{
 
             }
 
-            void write(size_t val, size_t bob_idx, size_t length){
+            template <class T>
+            void write(OperatableVector<T>& data, size_t val, size_t bob_slot, size_t bob_offset, size_t eor_slot, size_t eor_offset, size_t length){
                                 
                 val = val & this->get_extractor(length); 
-
-                size_t eor_idx = bob_idx + length - 1;
-                size_t bob_slot = bob_idx / BIT_WIDTH;
-                size_t bob_offset = bob_idx % BIT_WIDTH;
-                size_t eor_slot = eor_idx / BIT_WIDTH;
-                size_t eor_offset = eor_idx % BIT_WIDTH;
 
                 if (bob_slot == eor_slot){
                     
                     size_t erasor = this->get_erasor(bob_offset, length);
-                    this->data->set(bob_slot, (this->data->get(bob_slot) & erasor) | (val << bob_offset));
+                    data.set(bob_slot, (data.get(bob_slot) & erasor) | (val << bob_offset));
 
                     return;
 
@@ -3191,39 +3113,79 @@ namespace memory::sizet_linear{
                 size_t hi_erasor = this->get_erasor(hi_length); 
 
                 size_t lo_val = this->get_extractor(lo_length) & val;
-                size_t lo_adjusted_val = (this->data->get(bob_slot) & lo_erasor) | (lo_val << bob_offset);
-                size_t hi_adjusted_val = (this->data->get(eor_slot) & hi_erasor) | (val >> lo_length);
+                size_t lo_adjusted_val = (data.get(bob_slot) & lo_erasor) | (lo_val << bob_offset);
+                size_t hi_adjusted_val = (data.get(eor_slot) & hi_erasor) | (val >> lo_length);
 
-                this->data->set(bob_slot, lo_adjusted_val);
-                this->data->set(eor_slot, hi_adjusted_val);
+                data.set(bob_slot, lo_adjusted_val);
+                data.set(eor_slot, hi_adjusted_val);
 
             }
     };
 
-    template <class T>
-    class DynamicBitIterReplaceWriter: public DynamicBitIterWritable<DynamicBitIterReplaceWriter<T>>,
-                                       private DynamicBitIterReplaceWriterBase<T>{
+    class DynamicBitIterReplaceWriter: public DynamicBitIterWritable<DynamicBitIterReplaceWriter>,
+                                       private DynamicBitIterReplaceWriterBase{
 
+        
+        private:
+
+            size_t bob_offset;
+            size_t bob_slot; 
 
         public:
 
-            DynamicBitIterReplaceWriter(): DynamicBitIterReplaceWriterBase<T>(nullptr, 0){}
+            DynamicBitIterReplaceWriter(){
 
-            DynamicBitIterReplaceWriter(OperatableVector<T> * data, size_t idx): DynamicBitIterReplaceWriterBase<T>(data, idx){}
+                this->bob_offset = 0;
+                this->bob_slot = 0;
+                
+            }
 
-            bool write(size_t val, size_t write_length){
-                
-                size_t total_length = this->data->length() * BIT_WIDTH;
-                
-                if (this->idx >= total_length){
+            DynamicBitIterReplaceWriter(size_t idx){
+
+                this->bob_offset = idx % BIT_WIDTH;
+                this->bob_slot = idx / BIT_WIDTH;
+
+            }
+
+            template <class T>
+            bool write(OperatableVector<T>& data, size_t val, size_t write_length){
+                                
+                if (this->bob_slot >= data.length()){
                     
                     return false;
 
                 }
                 
-                write_length = std::min(total_length - this->idx, write_length);
-                DynamicBitIterReplaceWriterBase<T>::write(val, this->idx, write_length);
-                this->idx += write_length;
+                size_t eor_slot = this->bob_slot;
+                size_t eor_offset = this->bob_offset + write_length - 1; 
+
+                if (eor_offset >= BIT_WIDTH){
+
+                    ++eor_slot;
+                    eor_offset -= BIT_WIDTH;
+
+                    if (eor_slot == data.length()){
+
+                        --eor_slot;
+                        eor_offset = BIT_WIDTH - 1; 
+                        
+                        write_length = BIT_WIDTH - this->bob_offset;
+
+                    }
+
+                }
+
+                DynamicBitIterReplaceWriterBase::write(data, val, this->bob_slot, this->bob_offset, eor_slot, eor_offset, write_length);
+                
+                this->bob_slot = eor_slot;
+                this->bob_offset = eor_offset + 1;
+
+                if (this->bob_offset >= BIT_WIDTH){
+
+                    ++this->bob_slot;
+                    this->bob_offset -= BIT_WIDTH;
+
+                }
 
                 return true; 
 
@@ -3231,77 +3193,70 @@ namespace memory::sizet_linear{
 
     };
 
-    template <class T>
-    class ReverseDynamicBitIterReplaceWriter: public DynamicBitIterWritable<ReverseDynamicBitIterReplaceWriter<T>>, 
-                                              private DynamicBitIterReplaceWriterBase<T>{
+    class ReverseDynamicBitIterReplaceWriter: public DynamicBitIterWritable<ReverseDynamicBitIterReplaceWriter>, 
+                                              private DynamicBitIterReplaceWriterBase{
+        
+        private:
+
+            intmax_t bob_slot;
+            intmax_t bob_offset;
 
         public:
 
-            ReverseDynamicBitIterReplaceWriter() : DynamicBitIterReplaceWriterBase<T>(nullptr, -1){}
+            ReverseDynamicBitIterReplaceWriter(){
 
-            ReverseDynamicBitIterReplaceWriter(OperatableVector<T> * data): DynamicBitIterReplaceWriterBase<T>(data, data->length() * BIT_WIDTH - 1){}
+                this->bob_slot = -1;
+                this->bob_offset = -1;
 
-            ReverseDynamicBitIterReplaceWriter(OperatableVector<T> * data, size_t idx): DynamicBitIterReplaceWriterBase<T>(data, idx){}
+            }
 
-            bool write(size_t val, size_t write_length){
+            ReverseDynamicBitIterReplaceWriter(size_t idx){
 
-                if (this->idx < 0){
+                this->bob_slot = idx / BIT_WIDTH;
+                this->bob_offset = idx % BIT_WIDTH;
+
+            }
+
+            template <class T>
+            bool write(OperatableVector<T>& data, size_t val, size_t write_length){
+
+                if (this->bob_slot < 0){
 
                     return false; 
 
                 }
 
-                size_t real_write_length = std::min(this->idx + 1, (intmax_t) write_length); 
-                this->idx -= real_write_length; 
-                DynamicBitIterReplaceWriterBase<T>::write(val, this->idx + 1, real_write_length); 
+                intmax_t eor_slot = this->bob_slot;
+                intmax_t eor_offset = this->bob_offset - write_length + 1;
+
+                if (eor_offset < 0){
+
+                    --eor_slot;
+                    eor_offset += BIT_WIDTH;
+
+                    if (eor_slot == -1){
+
+                        eor_slot = 0;
+                        eor_offset = 0;
+                        write_length = this->bob_offset + 1; 
+
+                    }
+
+                }
+
+                DynamicBitIterReplaceWriterBase::write(data, val, eor_slot, eor_offset, this->bob_slot, this->bob_offset, write_length); 
+
+                this->bob_slot = eor_slot;
+                this->bob_offset = eor_offset - 1;
+
+                if (this->bob_offset < 0){
+
+                    --this->bob_slot;
+                    this->bob_offset += BIT_WIDTH;
+
+                } 
 
                 return true;
-
-            }
-
-    };
-
-    template <class T>
-    class BitIterOrWriter: public BitIterWritable<BitIterOrWriter<T>>, public DynamicBitIterOrWriter<T>{
-
-        private:
-
-            size_t write_length;
-        
-        public:
-
-            BitIterOrWriter(OperatableVector<T> * data, size_t offset, size_t write_length): DynamicBitIterOrWriter<T>(data, offset){
-
-                this->write_length = write_length;
-
-            }
-
-            bool write(size_t val){
-
-                return DynamicBitIterOrWriter<T>::write(val, this->write_length);
-
-            }
-
-    };
-
-    template <class T>
-    class BitIterReplaceWriter: public BitIterWritable<BitIterReplaceWriter<T>>, public DynamicBitIterReplaceWriter<T>{
-
-        private:
-
-            size_t write_length;
-        
-        public:
-
-            BitIterReplaceWriter(OperatableVector<T> * data, size_t offset, size_t write_length): DynamicBitIterReplaceWriter<T>(data, offset){
-
-                this->write_length = write_length;
-
-            }
-
-            bool write(size_t val){
-
-                return DynamicBitIterReplaceWriter<T>::write(val, this->write_length);
 
             }
 
@@ -3312,10 +3267,9 @@ namespace memory::sizet_linear{
 
         public:
 
-            template<class T>
-            DynamicBitIterOrWriter<T> get(OperatableVector<T>& data, size_t offset){ 
+            DynamicBitIterOrWriter get(size_t offset){ 
 
-                return DynamicBitIterOrWriter<T>(&data, offset);
+                return DynamicBitIterOrWriter(offset);
 
             }
 
@@ -3326,10 +3280,9 @@ namespace memory::sizet_linear{
 
         public:
 
-            template<class T>
-            DynamicBitIterReplaceWriter<T> get(OperatableVector<T>& data, size_t offset){ 
+            DynamicBitIterReplaceWriter get(size_t offset){ 
 
-                return DynamicBitIterReplaceWriter<T>(&data, offset);
+                return DynamicBitIterReplaceWriter(offset);
 
             }
 
@@ -3340,28 +3293,14 @@ namespace memory::sizet_linear{
 
         public:
 
-            template<class T>
-            ReverseDynamicBitIterReplaceWriter<T> get(OperatableVector<T>& data, size_t offset){ 
+            ReverseDynamicBitIterReplaceWriter get(size_t offset){ 
 
-                return ReverseDynamicBitIterReplaceWriter<T>(&data, offset);
-
-            }
-
-    };
-
-    template <class ID>
-    class BitIterEmptyWriterGenerator: public BitIterWriterGeneratable<BitIterEmptyWriterGenerator<ID>>{
-
-        public:
-
-            template<class T>
-            BitIterOrWriter<T> get(OperatableVector<T>& data, size_t write_length, size_t offset, void * plm_space){
-
-                return BitIterOrWriter<T>(&data, offset, write_length);
+                return ReverseDynamicBitIterReplaceWriter(offset);
 
             }
 
     };
+
     
     using namespace caster::plm_boolvector;
     using namespace caster;
@@ -3444,12 +3383,6 @@ namespace memory::sizet_linear{
 
             }
 
-            auto get_bit_empty_writer_gen(){
-
-                return std::make_shared<BitIterEmptyWriterGenerator<GenericID>>();
-
-            }
-
             auto get_dynamic_bit_iter_gen(){
 
                 return std::make_shared<StandardDynamicBitIteratorGenerator<GenericID>>();
@@ -3459,12 +3392,6 @@ namespace memory::sizet_linear{
             auto get_reverse_dynamic_bit_iter_gen(){
 
                 return std::make_shared<ReverseDynamicBitIteratorGenerator<GenericID>>();
-
-            }
-
-            auto get_bit_iter_gen(){
-
-                return std::make_shared<StandardBitIteratorGenerator<GenericID>>();
 
             }
 
@@ -3576,13 +3503,6 @@ namespace memory::sizet_linear{
             }
 
             template <class ID>
-            auto get_bit_empty_writer_gen(ID){
-
-                return std::make_shared<BitIterEmptyWriterGenerator<ID>>();
-
-            }
-
-            template <class ID>
             auto get_dynamic_bit_iter_gen(ID){
 
                 return std::make_shared<StandardDynamicBitIteratorGenerator<ID>>();
@@ -3593,13 +3513,6 @@ namespace memory::sizet_linear{
             auto get_reverse_dynamic_bit_iter_gen(ID){
 
                 return std::make_shared<ReverseDynamicBitIteratorGenerator<ID>>();
-
-            }
-
-            template <class ID>
-            auto get_bit_iter_gen(ID){
-
-                return std::make_shared<StandardBitIteratorGenerator<ID>>();
 
             }
 
