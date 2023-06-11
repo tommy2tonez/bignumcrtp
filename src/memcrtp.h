@@ -438,6 +438,48 @@ namespace memory{
         };
 
         template <class T>
+        class OffsetReallocatableVectorGeneratable{
+
+            public:
+
+                template <class T1>
+                auto get(ReallocatableOperatableVector<T1>& data, size_t offset){
+
+                    return static_cast<T*>(this)->get(data, offset);
+
+                }
+
+                template <class T1>
+                std::shared_ptr<OffsetReallocatableVectorGeneratable<T>> to_offset_reallocatable_vector_generatable(std::shared_ptr<T1> data){
+                    
+                    return std::static_pointer_cast<OffsetReallocatableVectorGeneratable<T>>(data);
+
+                }
+
+        };
+        
+        template <class T>
+        class TransformedVectorReadableGeneratable{
+
+            public:
+
+                template <class T1>
+                auto get(VectorReadable<T1>& data, size_t (*transform_func) (size_t)){
+
+                    return static_cast<T*>(this)->get(data, transform_func);
+
+                }
+
+                template <class T1>
+                std::shared_ptr<TransformedVectorReadableGeneratable<T>> to_transformed_vector_readable_generatable(std::shared_ptr<T1> data){
+
+                    return std::static_pointer_cast<TransformedVectorReadableGeneratable<T>>(data);
+
+                }
+
+        };
+
+        template <class T>
         class StackVectorReadableGeneratable: public VectorReadableGeneratable<T>{
 
             public:
@@ -2003,6 +2045,103 @@ namespace memory::sizet_linear{
 
     };
 
+    class NonExtensibleReallocatableVector: public ReallocatableOperatableVector<NonExtensibleReallocatableVector>,
+                                            private StandardVectorOperator{
+
+        public:
+
+            using Interface = ReallocatableOperatableVector<NonExtensibleReallocatableVector>;
+            using Base = StandardVectorOperator; 
+            using Base::length;
+            using Base::get;
+            using Base::set;
+            using Base::get_data;
+            using Interface::sizeof_slot;
+            using Interface::to_vector_readable;
+            using Interface::to_operatable_vector;
+
+            NonExtensibleReallocatableVector(size_t * data, size_t length): Base(data, length){};
+
+            void resize(size_t sz){
+                
+                assert(sz <= Base::length());
+
+                Base::operator = (Base((size_t *) Base::get_data(), sz));
+
+            }
+
+            void resize_no_copy(size_t sz){
+                
+                assert(sz <= Base::length());
+
+                Base::operator = (Base((size_t *) Base::get_data(), sz));
+
+            }
+        
+
+    };
+
+    class TransformedVectorView: public VectorReadable<TransformedVectorView>,
+                                 private StandardVectorView{
+        
+        private:
+
+            size_t (*transformed_func) (size_t);
+
+        public:
+
+            using Interface = VectorReadable<TransformedVectorView>;
+            using Base = StandardVectorView;
+            using Base::length;
+            using Base::get_data;
+            using Interface::to_vector_readable;
+            using Interface::sizeof_slot;
+
+            TransformedVectorView(size_t * data, size_t length, size_t (*transformed_func) (size_t)): Base(data, length){
+
+                this->transformed_func = transformed_func;
+
+            }
+
+            size_t get(size_t idx){
+
+                return transformed_func(Base::get(idx));
+
+            }
+
+    }; 
+
+    template <class ID>
+    class NonExtensibleReallocatableVectorGenerator: public OffsetReallocatableVectorGeneratable<NonExtensibleReallocatableVectorGenerator<ID>>{
+
+        public:
+
+            template <class T1>
+            auto get(ReallocatableOperatableVector<T1>& data, size_t offset){
+                
+                assert(offset <= data.length());
+
+                return NonExtensibleReallocatableVector((size_t *) data.get_data() + offset, data.length() - offset);
+
+            }
+
+    };
+
+    template <class ID>
+    class StandardVectorViewMapGenerator: public TransformedVectorReadableGeneratable<StandardVectorViewMapGenerator<ID>>{
+
+        public:
+
+            template <class T1>
+            auto get(VectorReadable<T1>& data, size_t (*transformed_func)(size_t)){
+
+                return TransformedVectorView((size_t *) data.get_data(), data.length(), transformed_func);
+                 
+
+            }
+
+    };
+
     template <class ID>
     class StandardDanglingOperatableVectorGenerator: public DanglingOperatableVectorGeneratable<StandardDanglingOperatableVectorGenerator<ID>>{
 
@@ -3311,6 +3450,12 @@ namespace memory::sizet_linear{
 
         public:
 
+            auto get_std_vector_view_map_gen(){
+
+                return std::make_shared<StandardVectorViewMapGenerator<GenericID>>(); 
+
+            }
+
             auto get_temp_storage(size_t n){
 
                 return std::make_shared<StandardExponentialLinearTempStorageGenerator<GenericID>>(n);
@@ -3417,6 +3562,13 @@ namespace memory::sizet_linear{
     class IDGenerator{
 
         public:
+
+            template <class ID>
+            auto get_std_vector_view_map_gen(ID){
+
+                return std::make_shared<StandardVectorViewMapGenerator<ID>>(); 
+
+            }
 
             template <class ID>
             auto get_temp_storage(size_t n, ID){
@@ -3530,6 +3682,13 @@ namespace memory::sizet_linear{
                 auto casted = wrapper->to_reallocatable_sp(wrapper);
                 
                 return this->get_reallocatable_vector_generator(casted, id_);
+
+            }
+
+            template <class ID>
+            auto get_non_extensible_reallocatable_vector_generator(ID id_){
+
+                return std::make_shared<NonExtensibleReallocatableVectorGenerator<ID>>(); 
 
             }
 
