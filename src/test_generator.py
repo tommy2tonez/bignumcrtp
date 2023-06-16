@@ -99,6 +99,7 @@ def main():
 
 
     content = "\n".join(["#define BIGNUM_TEST",
+                         "#define BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT 2",
                          "#include <iostream>",
                          "#include \"BigNum.h\"",
                          "using namespace bignum::integer::usgn;",
@@ -107,7 +108,7 @@ def main():
                          "\tResourceInitiator(1);",
                          "\n".join(rs),
                          "\tResourceDestructor();",
-                         "\tstd::cout << \"completed\";",
+                         "\std::cout << \"completed\" << \"<>\" << BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT << \"<length_per_slot>\";",
                          "}"])
     
     with open(op_file, "w") as f:

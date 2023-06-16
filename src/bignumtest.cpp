@@ -1,8 +1,10 @@
+#define BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT 2
 #define BIGNUM_TEST
 #include <iostream>
 #include "BigNum.h"
 using namespace bignum::integer::usgn;
 using namespace dgstd;
+
 int main(){
 	ResourceInitiator(1);
 	assert(((BigUINT("0b0") + BigUINT("0b0")) == BigUINT("0b0")));
@@ -7458,5 +7460,6 @@ int main(){
 	assert(((BigUINT("0b1110") %= BigUINT("0b1101")) == BigUINT("0b1")));
 	assert(((BigUINT("0b1110") %= 13) == BigUINT("0b1")));
 	ResourceDestructor();
-	std::cout << "completed";
+	std::cout << "completed" << "<>" << BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT << "<length_per_slot>";
+	
 }

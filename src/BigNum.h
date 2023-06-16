@@ -16,11 +16,15 @@
 #include <queue>
 #include <chrono>
 
-namespace bignum::vector{
+#define BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT (sizeof(size_t) * 8)
 
-    inline static const uint8_t BIT_LENGTH_PER_SLOT = 62;
-    inline static const size_t MAX_VAL_PER_SLOT = ((size_t) 1 << BIT_LENGTH_PER_SLOT) - 1;
-    inline static const uint8_t ACTUAL_BIT_LENGTH_PER_SLOT = sizeof(size_t) * 8;
+#ifndef BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT
+#define BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT (BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT - 2)
+#endif 
+
+#define BIGNUM_VECTOR_MAX_VAL_PER_SLOT (((size_t) 1 << BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT) - 1)
+
+namespace bignum::vector{
 
     typedef size_t (*pairwise_ops)(size_t, size_t); 
     inline static uint8_t NULL_VALUE = 0;  
@@ -202,6 +206,26 @@ namespace bignum::vector{
 
                 } 
 
+        };
+
+        template <class T>
+        class OperatableVectorSplittable{
+
+            public:
+
+                template <class T1>
+                auto split(memory::sizet_linear::OperatableVector<T1>& data, size_t split_sz){ //->std::pair<memory::sizet_linear::VectorReadable<>&, memory::sizet_linear::VectorReadable<>&>
+                                        
+                    return static_cast<T*>(this)->split(data, split_sz);
+
+                }
+
+                template <class T1>
+                std::shared_ptr<OperatableVectorSplittable<T>> to_op_splittable_sp(std::shared_ptr<T1> data){
+                                        
+                    return std::static_pointer_cast<OperatableVectorSplittable<T>>(data); 
+
+                } 
         };
 
         template <class T>
@@ -652,7 +676,28 @@ namespace bignum::vector{
 
 
         };
+        
+        template <class T>
+        class InPlaceOperatable{
 
+            public:
+
+                template <class T1, class T2, class T3>
+                void ops(memory::sizet_linear::VectorReadable<T1>& lhs, memory::sizet_linear::VectorReadable<T2>& rhs, memory::sizet_linear::OperatableVector<T3>& rs){
+
+                    static_cast<T*>(this)->ops(lhs, rhs, rs);
+
+                }
+
+                template <class T1>
+                std::shared_ptr<InPlaceOperatable<T>> to_inplace_operatable_sp(std::shared_ptr<T1> data){
+
+                    return std::static_pointer_cast<InPlaceOperatable<T>>(data);
+
+                }
+
+        };
+        
         template <class T>
         class Divisible: public Operatable<T>{
 
@@ -1668,7 +1713,7 @@ namespace bignum::vector{
 
             size_t get_actual_idx(size_t idx){
                 
-                return this->get_slot(idx) * ACTUAL_BIT_LENGTH_PER_SLOT + this->get_offset(idx);
+                return this->get_slot(idx) * BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT + this->get_offset(idx);
             
             }
         
@@ -1676,13 +1721,13 @@ namespace bignum::vector{
 
             size_t get_slot(size_t idx){
 
-                return idx / BIT_LENGTH_PER_SLOT;
+                return idx / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
             }
 
             size_t get_offset(size_t idx){
 
-                return idx % BIT_LENGTH_PER_SLOT;
+                return idx % BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
             }
 
@@ -1736,7 +1781,7 @@ namespace bignum::vector{
 
             size_t length(){
 
-                return this->data.length() / ACTUAL_BIT_LENGTH_PER_SLOT * BIT_LENGTH_PER_SLOT; 
+                return this->data.length() / BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT; 
 
             }
 
@@ -1811,7 +1856,7 @@ namespace bignum::vector{
 
             size_t length(){
 
-                return this->data.length() / ACTUAL_BIT_LENGTH_PER_SLOT * BIT_LENGTH_PER_SLOT; 
+                return this->data.length() / BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT; 
 
             }
 
@@ -1965,7 +2010,7 @@ namespace bignum::vector{
 
                     rs.resize_no_copy(slot_sz);
 
-                    while (iter.next(casted, cur, BIT_LENGTH_PER_SLOT) && (i < slot_sz)){
+                    while (iter.next(casted, cur, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT) && (i < slot_sz)){
 
                         rs.set(i++, cur);
 
@@ -1996,15 +2041,15 @@ namespace bignum::vector{
 
                     }
 
-                    size_t bit_length = (sz - 1) * ACTUAL_BIT_LENGTH_PER_SLOT + algorithm::log2::log2_64(data[sz - 1]) + 1;
+                    size_t bit_length = (sz - 1) * BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT + algorithm::log2::log2_64(data[sz - 1]) + 1;
 
-                    if (bit_length % BIT_LENGTH_PER_SLOT == 0){
+                    if (bit_length % BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT == 0){
 
-                        return bit_length / BIT_LENGTH_PER_SLOT;
+                        return bit_length / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                     }
 
-                    return (bit_length / BIT_LENGTH_PER_SLOT) + 1;
+                    return (bit_length / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT) + 1;
 
                 }
 
@@ -2309,7 +2354,7 @@ namespace bignum::vector::operation_utility{
             template <class T1>
             size_t get_bit_length(memory::sizet_linear::VectorReadable<T1>& data){
 
-                return (data.length() - 1) * BIT_LENGTH_PER_SLOT + algorithm::log2::log2_64(data.get(data.length() - 1)) + 1; 
+                return (data.length() - 1) * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + algorithm::log2::log2_64(data.get(data.length() - 1)) + 1; 
 
             }
 
@@ -2334,7 +2379,7 @@ namespace bignum::vector::operation_utility{
 
                 } 
 
-                return (data_sz - 1) * BIT_LENGTH_PER_SLOT + algorithm::log2::log2_64(data.get(data_sz - 1)) + 1;
+                return (data_sz - 1) * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + algorithm::log2::log2_64(data.get(data_sz - 1)) + 1;
 
             }
 
@@ -2392,7 +2437,7 @@ namespace bignum::vector::operation_utility{
 
                 size_t r_most_sig_val = data.get(trailing_zero_sz) & (-data.get(trailing_zero_sz)); 
 
-                return trailing_zero_sz * BIT_LENGTH_PER_SLOT + algorithm::log2::log2_64(r_most_sig_val);
+                return trailing_zero_sz * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + algorithm::log2::log2_64(r_most_sig_val);
 
             }
 
@@ -2509,6 +2554,40 @@ namespace bignum::vector::operation_utility{
 
     };
 
+    template <class ID>
+    class SafeSplitter: public VectorViewSplittable<SafeSplitter<ID>>,
+                        private memory::sizet_linear::SafeVectorReadableSplitter<ID>{
+        
+        public:
+
+            SafeSplitter() {}
+
+            template <class T>
+            auto split(memory::sizet_linear::VectorReadable<T>& data, size_t split_point){
+
+                return memory::sizet_linear::SafeVectorReadableSplitter<ID>::split(data, split_point);
+
+            }
+
+    };
+
+    template <class ID>
+    class RawOperatableSplitter: public OperatableVectorSplittable<RawOperatableSplitter<ID>>,
+                                 private memory::sizet_linear::OperatableVectorSplitter<ID>{
+        
+        public:
+
+            RawOperatableSplitter() {}
+
+            template <class T>
+            auto split(memory::sizet_linear::OperatableVector<T>& data, size_t split_point){
+
+                return memory::sizet_linear::OperatableVectorSplitter<ID>::split(data, split_point);
+
+            } 
+
+    };
+
     class IteratorHelper{
         
         protected:
@@ -2519,7 +2598,7 @@ namespace bignum::vector::operation_utility{
 
             IteratorHelper(size_t actual_bit_width, size_t virtual_bit_width, size_t virtual_read_size){
 
-                assert(actual_bit_width <= ACTUAL_BIT_LENGTH_PER_SLOT);
+                assert(actual_bit_width <= BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT);
                 assert(virtual_bit_width <= actual_bit_width);
                 assert(virtual_read_size <= virtual_bit_width);
                 assert(virtual_read_size > 0);
@@ -2751,7 +2830,7 @@ namespace bignum::vector::operation_utility{
                 
                 auto iter = T::get(); 
 
-                return this->get(read_length, BIT_LENGTH_PER_SLOT, 0, iter);
+                return this->get(read_length, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, 0, iter);
 
             }
 
@@ -2760,7 +2839,7 @@ namespace bignum::vector::operation_utility{
                 offset = this->get_actual_idx(offset);
                 auto iter = T::get(offset); 
 
-                return this->get(read_length, BIT_LENGTH_PER_SLOT, offset, iter);
+                return this->get(read_length, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, offset, iter);
 
             }
 
@@ -2770,7 +2849,7 @@ namespace bignum::vector::operation_utility{
             template <class T2>
             auto get(size_t read_length, size_t custom_width, size_t offset, T2 iter){
 
-                return BitIterator<T2>(ACTUAL_BIT_LENGTH_PER_SLOT, custom_width, read_length, offset, iter); 
+                return BitIterator<T2>(BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT, custom_width, read_length, offset, iter); 
 
             }
 
@@ -2864,7 +2943,7 @@ namespace bignum::vector::operation_utility{
             template <class T1>
             BitIterWriter<T1> get(size_t write_length, size_t offset, T1 iter_writer){
                 
-                return BitIterWriter<T1>(ACTUAL_BIT_LENGTH_PER_SLOT, BIT_LENGTH_PER_SLOT, write_length, offset, iter_writer); 
+                return BitIterWriter<T1>(BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, write_length, offset, iter_writer); 
 
             }
 
@@ -2957,7 +3036,7 @@ namespace bignum::vector::operation_utility{
             template <class T1>
             auto gen(T1 iter, size_t offset){
                                 
-                return ReverseBitIterator<T1>(ACTUAL_BIT_LENGTH_PER_SLOT, BIT_LENGTH_PER_SLOT, offset, iter); 
+                return ReverseBitIterator<T1>(BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, offset, iter); 
 
             }
 
@@ -3056,7 +3135,7 @@ namespace bignum::vector::operation_utility{
             template <class T1>
             auto gen(T1 iter, size_t offset){
                                 
-                return ReverseDynamicBitIterWriter<T1>(ACTUAL_BIT_LENGTH_PER_SLOT, BIT_LENGTH_PER_SLOT, offset, iter); 
+                return ReverseDynamicBitIterWriter<T1>(BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, offset, iter); 
 
             }
 
@@ -3087,7 +3166,7 @@ namespace bignum::vector::operation_utility{
             template <class T2>
             size_t get_instantiation_cost(memory::sizet_linear::VectorReadable<T2>& data, size_t bit_width){
 
-                assert(bit_width <= ACTUAL_BIT_LENGTH_PER_SLOT);
+                assert(bit_width <= BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT);
      
                 return this->get_sz(BitLengthRetriever<Discretizer<T, T1, ID>>::get_bit_length(data), bit_width) * sizeof(size_t);
 
@@ -3096,7 +3175,7 @@ namespace bignum::vector::operation_utility{
             template <class T2>
             auto discretize(memory::sizet_linear::VectorReadable<T2>& data, size_t bit_width, void * plm_space){
 
-                assert(bit_width <= ACTUAL_BIT_LENGTH_PER_SLOT);
+                assert(bit_width <= BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT);
                 
                 size_t discretized_sz = this->get_sz(BitLengthRetriever<Discretizer<T, T1, ID>>::get_bit_length(data), bit_width);
                 size_t cur_read = 0;
@@ -3161,7 +3240,7 @@ namespace bignum::vector::operation_utility{
             template <class T, class T1>
             size_t get(memory::sizet_linear::VectorReadable<T>& lhs, memory::sizet_linear::VectorReadable<T1>& rhs){
                 
-                constexpr const size_t MAX_THRESHOLD = MAX_VAL_PER_SLOT >> 1;
+                constexpr const size_t MAX_THRESHOLD = BIGNUM_VECTOR_MAX_VAL_PER_SLOT >> 1;
                 
                 if (lhs.length() < rhs.length()){
 
@@ -3298,7 +3377,7 @@ namespace bignum::vector::operation_utility{
             template <class T>
             size_t get(memory::sizet_linear::VectorReadable<T>& lhs, size_t rhs){
                 
-                size_t sz = rhs / BIT_LENGTH_PER_SLOT + 1; 
+                size_t sz = rhs / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + 1; 
 
                 return lhs.length() + sz; 
 
@@ -3368,7 +3447,7 @@ namespace bignum::vector::operation_utility{
         
         private:
 
-            const size_t threshold = MAX_VAL_PER_SLOT >> 1; 
+            const size_t threshold = BIGNUM_VECTOR_MAX_VAL_PER_SLOT >> 1; 
 
         public:
 
@@ -3578,6 +3657,11 @@ namespace bignum::vector::operation_utility{
 
 
         public:
+
+            auto get_raw_operatable_vector_splitter(){
+
+                return std::make_shared<RawOperatableSplitter<Generic>>();
+            }
 
             auto get_bit_iter_orwriter_gen(){ //-> shared_ptr<BitIterWriterGeneratable<>>
 
@@ -3802,7 +3886,6 @@ namespace bignum::vector::operation_utility{
 
         private:
             
-
             template <class T, class ID>
             auto init_reverse_dynamic_bit_iter_gen(std::shared_ptr<memory::sizet_linear::DynamicBitIteratorGeneratable<T>> iter_gen, ID){
 
@@ -3841,6 +3924,19 @@ namespace bignum::vector::operation_utility{
             }
 
         public:
+
+            template <class ID>
+            auto get_raw_operatable_vector_splitter(ID){
+
+                return std::make_shared<RawOperatableSplitter<ID>>();
+            }
+
+            template <class ID>
+            auto get_safe_splitter(ID id_){
+
+                return std::make_shared<SafeSplitter<ID>>();
+
+            }
 
             template <class ID>
             auto get_reverse_bit_iter_replace_writer_gen(ID id_){
@@ -4143,16 +4239,16 @@ namespace bignum::vector::mutable_operation{
                 for (i = 0; i < rhs.length(); ++i){
 
                     total += lhs.get(i) + rhs.get(i);
-                    lhs.set(i, total & MAX_VAL_PER_SLOT);
-                    total >>= BIT_LENGTH_PER_SLOT; 
+                    lhs.set(i, total & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    total >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT; 
 
                 }
 
                 while (total){
                     
                     total += lhs.get(i);
-                    lhs.set(i, total & MAX_VAL_PER_SLOT);
-                    total >>= BIT_LENGTH_PER_SLOT;
+                    lhs.set(i, total & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    total >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                     ++i;
 
@@ -4172,9 +4268,9 @@ namespace bignum::vector::mutable_operation{
             template <class T1, class T2>
             void ops(memory::sizet_linear::OperatableVector<T1>& lhs, memory::sizet_linear::VectorReadable<T2>& rhs){
 
-                assert(BIT_LENGTH_PER_SLOT + 1 < ACTUAL_BIT_LENGTH_PER_SLOT);
+                assert(BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + 1 < BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT);
                 
-                constexpr const size_t BORROW_VAL = MAX_VAL_PER_SLOT + 1; 
+                constexpr const size_t BORROW_VAL = BIGNUM_VECTOR_MAX_VAL_PER_SLOT + 1; 
 
                 intmax_t rs = 0;
                 size_t i = 0;
@@ -4240,7 +4336,7 @@ namespace bignum::vector::mutable_operation{
                 
                 size_t pre_length = T2::get_bit_length(lhs);
                 size_t post_length = (pre_length > rhs) ? pre_length - rhs : 0; 
-                size_t read_length = BIT_LENGTH_PER_SLOT;
+                size_t read_length = BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
                 size_t data = 0;
                 
                 auto write_iter = T1::get(read_length, 0);
@@ -4291,7 +4387,7 @@ namespace bignum::vector::mutable_operation{
                 size_t prev_length = T2::get_bit_length(lhs); 
                 size_t post_length = prev_length + rhs;
                 size_t cur_read = 0;
-                size_t trailing_length = prev_length % BIT_LENGTH_PER_SLOT;
+                size_t trailing_length = prev_length % BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                 auto rev_read_iter = T::get(prev_length - 1);
                 auto rev_write_iter = T1::get(post_length - 1); 
@@ -4303,13 +4399,13 @@ namespace bignum::vector::mutable_operation{
 
                 }
 
-                while (rev_read_iter.next(lhs, cur_read, BIT_LENGTH_PER_SLOT)){
+                while (rev_read_iter.next(lhs, cur_read, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT)){
 
-                    rev_write_iter.write(lhs, cur_read, BIT_LENGTH_PER_SLOT);
+                    rev_write_iter.write(lhs, cur_read, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT);
 
                 }
 
-                while (rev_write_iter.write(lhs, 0, BIT_LENGTH_PER_SLOT));
+                while (rev_write_iter.write(lhs, 0, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT));
                 
             }
 
@@ -4457,6 +4553,750 @@ namespace bignum::vector::mutable_operation{
 
 }
 
+namespace bignum::vector::immutable_operation::fast_mul{
+
+    struct _Virtual_Head{}; 
+
+    template <class Parent, class DoubleWord, unsigned LIMB_LENGTH, unsigned MAX_LIMB_LENGTH>
+    struct MulCarry: public MulCarry<MulCarry<Parent, DoubleWord, LIMB_LENGTH, MAX_LIMB_LENGTH>, DoubleWord, LIMB_LENGTH - 1, MAX_LIMB_LENGTH>{
+
+        using Self = MulCarry<Parent, DoubleWord, LIMB_LENGTH, MAX_LIMB_LENGTH>;
+        using Base = MulCarry<Self, DoubleWord, LIMB_LENGTH - 1, MAX_LIMB_LENGTH>;
+        
+        DoubleWord _val;
+        DoubleWord _mul;
+        
+        constexpr MulCarry(): _val(0), _mul(0){}
+
+        template <class T>
+        MulCarry(memory::sizet_linear::VectorReadable<T>& muls): Base(muls){
+
+            this->_val = 0;
+
+            if (muls.length() >= LIMB_LENGTH){
+                
+                this->_mul = muls.get(LIMB_LENGTH - 1);
+
+            } else{
+
+                this->_mul = 0;
+
+            }
+
+        }  
+
+        inline void plus(size_t val){
+
+            static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->true_plus(val);
+
+        }
+
+        inline void true_plus(size_t val){
+
+            this->_val += val;
+
+        }
+
+        template <template <unsigned> class MulCarryRetriever, unsigned ID>
+        inline void mul(const MulCarryRetriever<ID>& carry_retriever, size_t val){
+
+            static_cast<decltype(this->get_last()) *>(this)->rec_mul(carry_retriever, *this, val);
+
+        }
+
+        template <template <unsigned> class MulCarryRetriever, unsigned ID, class Head>
+        inline void rec_mul(const MulCarryRetriever<ID>& carry_retriever, const Head& head_val, size_t val){
+
+            this->_val += static_cast<decltype(MulCarryRetriever<Self().get_cyclic_id(Head())>().get(this->get_last())) *>(this)->_mul * val;
+            Base::rec_mul(carry_retriever, head_val, val);
+
+        }
+
+        inline auto shift(){
+
+            static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->true_shift();
+
+            return static_cast<decltype(this->get_parent_type()) *>(this);
+
+        }
+
+        inline void true_shift(){
+            
+            static_cast<decltype(this->get_parent_type()) *>(this)->true_plus(this->_val >> BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT);
+            this->_val = 0;
+
+        }
+        
+        inline size_t get_val(){
+
+            return static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->get_true_val();
+
+        }
+
+        inline size_t get_true_val(){
+
+            return this->_val & BIGNUM_VECTOR_MAX_VAL_PER_SLOT;
+
+        }
+
+        template <class Head>
+        inline bool is_zero(Head& _head){
+
+            return (this->_val == 0) && (Base::is_zero(_head));
+
+        }
+
+        inline bool is_zero(Base&){
+
+            return this->_val == 0;
+
+        }
+
+        constexpr auto get_parent_type(_Virtual_Head){
+
+            return this->get_first(); 
+
+        }
+
+        template <class Parent_>
+        constexpr auto get_parent_type(Parent_){
+
+            return Parent_();
+
+        }
+
+        constexpr auto get_parent_type(){
+
+            return this->get_parent_type(Parent()); 
+
+        }
+
+        template <class Parent_>
+        constexpr auto get_last(Parent_){
+
+            return static_cast<Parent_ *>(this)->get_last();
+
+        } 
+
+        constexpr auto get_last(_Virtual_Head){
+
+            return Self(); 
+
+        }
+
+        constexpr auto get_last(){
+
+            return this->get_last(Parent());
+
+        }
+
+        constexpr auto get_first(){
+
+            return Base::get_first(); 
+
+        }
+
+        template <class Head>
+        constexpr auto get_cyclic_tail(Head){
+
+            return Base::get_cyclic_tail(Head()); 
+
+        }
+
+        constexpr auto get_cyclic_tail(Base){
+
+            return Self();
+
+        }
+
+        template <class T, class T1, unsigned ID>
+        constexpr unsigned get_cyclic_id(MulCarry<T, T1, ID, MAX_LIMB_LENGTH> head){
+
+            if (LIMB_LENGTH <= ID){
+
+                return MAX_LIMB_LENGTH - ID + LIMB_LENGTH; 
+
+            }
+
+            return LIMB_LENGTH - ID;
+
+        }
+
+    };
+
+    template <class Parent, class DoubleWord, unsigned MAX_LIMB_LENGTH>
+    struct MulCarry<Parent, DoubleWord, 1, MAX_LIMB_LENGTH>{
+
+        using Self = MulCarry<Parent, DoubleWord, 1, MAX_LIMB_LENGTH>;
+        
+        DoubleWord _val;
+        DoubleWord _mul;
+        
+        constexpr MulCarry(): _val(0), _mul(0){}
+
+        template <class T>
+        MulCarry(memory::sizet_linear::VectorReadable<T>& muls){
+
+            this->_val = 0;
+            this->_mul = muls.get(0);
+
+        }  
+
+        inline void plus(size_t val){
+
+            static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->true_plus(val);
+
+        }
+
+        inline void true_plus(size_t val){
+
+            this->_val += val;
+
+        }
+
+        template <template <unsigned> class MulCarryRetriever, unsigned ID>
+        inline void mul(const MulCarryRetriever<ID>& carry_retriever, size_t val){
+
+            using Base = decltype(static_cast<Parent *>(this)->get_last());
+
+            static_cast<Base *>(this)->rec_mul(carry_retriever, *this, val);
+
+        }
+
+        template <template <unsigned> class MulCarryRetriever, unsigned ID, class Head>
+        inline void rec_mul(const MulCarryRetriever<ID>& carry_retriever, const Head& head_val, size_t val){
+
+            using Base = decltype(static_cast<Parent *>(this)->get_last());
+
+            this->_val += static_cast<decltype(MulCarryRetriever<Self().get_cyclic_id(Head())>().get(Base())) *>(this)->_mul * val;
+
+        }
+
+        inline auto shift(){
+
+            static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->true_shift();
+
+            return static_cast<Parent *>(this);
+
+        }
+
+        inline void true_shift(){
+            
+            static_cast<Parent *>(this)->true_plus(this->_val >> BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT);
+            this->_val = 0;
+
+        }
+        
+        inline size_t get_val(){
+
+            return static_cast<decltype(this->get_cyclic_tail(Self())) *>(this)->get_true_val();
+
+        }
+
+        inline size_t get_true_val(){
+
+            return this->_val & BIGNUM_VECTOR_MAX_VAL_PER_SLOT;
+
+        }
+
+        template <class Head>
+        inline bool is_zero(Head& head){
+
+            using Base = decltype(static_cast<Parent *>(this)->get_last());
+            constexpr auto base = Base();
+
+            return this->is_zero(head, base);
+
+        }
+
+        template <class Base>
+        inline bool is_zero(Base&, const Base&){
+
+            return this->_val == 0;
+
+        }
+
+        template <class Head, class Base>
+        inline bool is_zero(Head& _head, const Base&){
+
+            return (this->_val == 0) && (static_cast<Base *>(this)->is_zero(_head));
+
+        }
+
+        constexpr auto get_first(){
+
+            return Self();
+
+        }
+        
+        template <class Head>
+        constexpr auto get_cyclic_tail(Head){
+
+            using Base = decltype(static_cast<Parent *>(this)->get_last());
+
+            return this->get_cyclic_tail(Head(), Base()); 
+
+        }
+
+        template <class Head, class Base>
+        constexpr auto get_cyclic_tail(Head, Base){
+
+            return static_cast<Base *>(this)->get_cyclic_tail(Head());
+
+        }
+
+        template <class Base>
+        constexpr auto get_cyclic_tail(Base, Base){
+
+            return Self();
+
+        }
+
+        template <class T, class T1, unsigned ID>
+        constexpr unsigned get_cyclic_id(MulCarry<T, T1, ID, MAX_LIMB_LENGTH> head){
+
+            const unsigned LIMB_LENGTH = 1;
+            
+            if (LIMB_LENGTH <= ID){
+
+                return MAX_LIMB_LENGTH - ID + LIMB_LENGTH; 
+
+            }
+
+            return LIMB_LENGTH - ID;
+
+        }
+
+    };
+
+    template <class Parent, class DoubleWord, unsigned CUR_LIMB_LENGTH, unsigned LOOKUP_LIMB_LENGTH, unsigned MAX_LIMB_LENGTH>
+    struct MulCarryRetriever{
+
+        using Self = MulCarry<Parent, DoubleWord, CUR_LIMB_LENGTH, MAX_LIMB_LENGTH>;
+
+        auto get(){
+
+            return MulCarryRetriever<Self, DoubleWord, CUR_LIMB_LENGTH - 1, LOOKUP_LIMB_LENGTH, MAX_LIMB_LENGTH>().get();
+
+        }
+
+    };
+
+    template <class Parent, class DoubleWord, unsigned LIMB_LENGTH, unsigned MAX_LIMB_LENGTH>
+    struct MulCarryRetriever<Parent, DoubleWord, LIMB_LENGTH, LIMB_LENGTH, MAX_LIMB_LENGTH>{
+
+        using Self = MulCarry<Parent, DoubleWord, LIMB_LENGTH, MAX_LIMB_LENGTH>;
+        
+        auto get(){
+
+            return Self();
+
+        }
+        
+    };
+
+    template <unsigned LOOKUP_LIMB_LENGTH>
+    struct MulCarryRetrieverInitiator{
+
+        template <class Parent, class DoubleWord, unsigned MAX_LIMB_LENGTH>
+        auto get(MulCarry<Parent, DoubleWord, MAX_LIMB_LENGTH, MAX_LIMB_LENGTH>){
+
+            return MulCarryRetriever<Parent, DoubleWord, MAX_LIMB_LENGTH, LOOKUP_LIMB_LENGTH, MAX_LIMB_LENGTH>().get(); 
+
+        }
+
+    };
+
+    template <unsigned Length>
+    struct CarryCycle{
+
+        public:
+
+            template <class MulCarry_, class T, class T1>
+            auto rec_apply(MulCarry_& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx, 
+                           memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+                
+                return CarryCycle<Length - 1>().apply(mul_carry, mul_vec, inp_idx, op_arr, op_idx);
+            
+            }
+
+            template <class MulCarry, class T, class T1>
+            auto apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx, 
+                       memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+                
+                constexpr auto carry_retriever = MulCarryRetrieverInitiator<0>();
+                
+                mul_carry.mul(carry_retriever, mul_vec.get(inp_idx));
+                mul_carry.plus(op_arr.get(op_idx));
+                op_arr.set(op_idx, mul_carry.get_val());
+
+                auto shifted = mul_carry.shift();
+                
+                return this->rec_apply(*shifted, mul_vec, inp_idx + 1, op_arr, op_idx + 1);
+
+            }
+
+            template <class MulCarry_, class T, class T1>
+            auto rec_replace_apply(MulCarry_& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx, 
+                                   memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+                
+                return CarryCycle<Length - 1>().replace_apply(mul_carry, mul_vec, inp_idx, op_arr, op_idx);
+            
+            }
+
+            template <class MulCarry, class T, class T1>
+            auto replace_apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx,
+                               memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+                
+
+                constexpr auto carry_retriever = MulCarryRetrieverInitiator<0>();
+                
+                mul_carry.mul(carry_retriever, mul_vec.get(inp_idx));
+                op_arr.set(op_idx, mul_carry.get_val());
+
+                auto shifted = mul_carry.shift();
+                
+                return this->rec_replace_apply(*shifted, mul_vec, inp_idx + 1, op_arr, op_idx + 1);
+
+
+            } 
+
+    };
+
+    template <>
+    struct CarryCycle<1>{
+
+        public:
+
+            template <class MulCarry, class T, class T1>
+            auto apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, 
+                    size_t inp_idx, memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+
+                constexpr auto carry_retriever = MulCarryRetrieverInitiator<0>();
+
+                mul_carry.mul(carry_retriever, mul_vec.get(inp_idx));
+                mul_carry.plus(op_arr.get(op_idx));
+                op_arr.set(op_idx, mul_carry.get_val());
+                
+                return mul_carry.shift();
+
+            }
+
+            template <class MulCarry, class T, class T1>
+            auto replace_apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx,
+                               memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx){
+                
+
+                constexpr auto carry_retriever = MulCarryRetrieverInitiator<0>();
+
+                mul_carry.mul(carry_retriever, mul_vec.get(inp_idx));
+                op_arr.set(op_idx, mul_carry.get_val());
+                
+                return mul_carry.shift();
+
+            } 
+
+    };
+
+    template <class MulCarry, class T1>
+    void output_trailing(MulCarry& mul_carry, memory::sizet_linear::OperatableVector<T1>& op_arr,
+                        size_t op_idx){
+        
+        if (mul_carry.is_zero(mul_carry)){
+
+            return;
+
+        }
+
+        mul_carry.plus(op_arr.get(op_idx));
+        op_arr.set(op_idx, mul_carry.get_val());
+        
+        auto shifted = mul_carry.shift();
+
+        output_trailing(*shifted, op_arr, op_idx + 1);
+
+    }
+
+    template <unsigned Begin, unsigned Length>
+    struct CarryRem{
+
+        public:
+
+            template <class MulCarry, class T, class T1>
+            void apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx, 
+                    memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx, size_t cyc_length){
+                
+                assert(cyc_length != 0);
+                
+                constexpr size_t End = Begin + Length - 1;
+                constexpr size_t Mid = (Begin + End) >> 1; 
+                constexpr size_t Lower_Length = Mid - Begin + 1;
+                constexpr size_t Higher_Length = End - Mid + 1; 
+
+                if (cyc_length > Mid){
+
+                    CarryRem<Mid, Higher_Length>().apply(mul_carry, mul_vec, inp_idx, op_arr, op_idx, cyc_length);
+
+                    return;
+
+                } 
+
+                CarryRem<Begin, Lower_Length>().apply(mul_carry, mul_vec, inp_idx, op_arr, op_idx, cyc_length);
+
+            }
+
+    };
+
+    template <unsigned Begin>
+    struct CarryRem<Begin, 2>{
+
+        public:
+
+            template <class MulCarry, class T, class T1>
+            void apply(MulCarry& mul_carry, memory::sizet_linear::VectorReadable<T>& mul_vec, size_t inp_idx, 
+                    memory::sizet_linear::OperatableVector<T1>& op_arr, size_t op_idx, size_t cyc_length){
+                            
+                auto rs =  CarryCycle<Begin + 1>().apply(mul_carry, mul_vec, inp_idx, op_arr, op_idx);
+
+                output_trailing(*rs, op_arr, op_idx + cyc_length);
+
+            }
+            
+    };
+
+    template <class DoubleWord, class ID, unsigned Length>
+    class GenericWordMultiplication: public InPlaceOperatable<GenericWordMultiplication<DoubleWord, ID, Length>>{
+        
+        public:
+
+            GenericWordMultiplication(){
+
+                assert(Length > 1);
+
+            }
+            
+            template <class T2, class T3, class T4>
+            void ops(memory::sizet_linear::VectorReadable<T2>& lhs, memory::sizet_linear::VectorReadable<T3>& rhs, memory::sizet_linear::OperatableVector<T4>& op){
+                
+                if (lhs.length() < rhs.length()){
+
+                    this->ops(rhs, lhs, op);
+                    
+                    return;
+
+                }
+
+                assert(rhs.length() <= Length);
+
+                MulCarry<_Virtual_Head, DoubleWord, Length, Length> mul_carry(*rhs.to_vector_readable());
+                size_t cycle_n = lhs.length() / Length;
+
+                for (size_t i = 0; i < cycle_n; ++i){
+                    
+                    CarryCycle<Length>().apply(mul_carry, *lhs.to_vector_readable(), i * Length, op, i * Length);
+
+                }
+
+                size_t offset = cycle_n * Length;
+                size_t rem_n = lhs.length() - offset;
+
+                if (rem_n != 0){
+                    
+                    CarryRem<0, Length>().apply(mul_carry, *lhs.to_vector_readable(), offset, op, offset, rem_n); 
+
+                } else {
+                    
+                    output_trailing(mul_carry, op, lhs.length());
+
+                }
+                
+            } 
+
+    };
+
+    template <class DoubleWord, class ID, unsigned Length>
+    class GenericWordReplaceMultiplication: public InPlaceOperatable<GenericWordReplaceMultiplication<DoubleWord, ID, Length>>{
+
+        public:
+
+            GenericWordReplaceMultiplication(){
+
+                assert(Length > 1);
+
+            }
+
+            template <class T, class T1, class T2>
+            void ops(memory::sizet_linear::VectorReadable<T>& lhs, 
+                     memory::sizet_linear::VectorReadable<T1>& rhs, 
+                     memory::sizet_linear::OperatableVector<T2>& op){
+
+                if (lhs.length() < rhs.length()){
+
+                    this->ops(rhs, lhs, op);
+                    
+                    return;
+
+                }
+
+                assert(rhs.length() <= Length);
+
+                MulCarry<_Virtual_Head, DoubleWord, Length, Length> mul_carry(rhs);
+                size_t cycle_n = lhs.length() / Length;
+
+                for (size_t i = 0; i < cycle_n; ++i){
+
+                    CarryCycle<Length>().replace_apply(mul_carry, lhs, i * Length, op, i * Length);
+
+                } 
+
+                size_t cycle_width = cycle_n * Length;
+                size_t rem = lhs.length() - cycle_width;
+
+                for (size_t i = cycle_width; i < op.length(); ++i){
+
+                    op.set(i, 0);
+
+                }
+
+                if (rem != 0){
+
+                    CarryRem<0, Length>().apply(mul_carry, lhs, cycle_width, op, cycle_width, rem);
+
+                } else{
+                    
+                    output_trailing(mul_carry, op, lhs.length());
+
+                }
+
+            }
+    };
+
+    template <class T, class T1, class T2, class DoubleWord, unsigned SKIP_LENGTH, class ID, unsigned DEFAULT_SKIP_LENGTH = 2>
+    class SkipMultiplication: public Operatable<SkipMultiplication<T, T1, T2, DoubleWord, SKIP_LENGTH, ID, DEFAULT_SKIP_LENGTH>>,
+                              private T, 
+                              private T1, 
+                              private T2,
+                              private GenericWordReplaceMultiplication<DoubleWord, ID, DEFAULT_SKIP_LENGTH>,
+                              private GenericWordReplaceMultiplication<DoubleWord, ID, SKIP_LENGTH>,
+                              private GenericWordMultiplication<DoubleWord, ID, DEFAULT_SKIP_LENGTH>,
+                              private GenericWordMultiplication<DoubleWord, ID, SKIP_LENGTH>{
+        
+        
+        public:
+
+            using Default_Replace_Mul = GenericWordReplaceMultiplication<DoubleWord, ID, DEFAULT_SKIP_LENGTH>;
+            using Norm_Replace_Mul = GenericWordReplaceMultiplication<DoubleWord, ID, SKIP_LENGTH>;
+            using Default_Append_Mul = GenericWordMultiplication<DoubleWord, ID, DEFAULT_SKIP_LENGTH>;
+            using Norm_Append_Mul = GenericWordMultiplication<DoubleWord, ID, SKIP_LENGTH>;
+
+            constexpr SkipMultiplication(){}
+
+            SkipMultiplication(std::shared_ptr<operation_utility::Estimatable<T>> estimator,
+                               std::shared_ptr<operation_utility::VectorViewSplittable<T1>> view_splitter,
+                               std::shared_ptr<operation_utility::OperatableVectorSplittable<T2>> op_splitter): T(static_cast<T&>(*estimator)),
+                                                                                                                T1(static_cast<T1&>(*view_splitter)),
+                                                                                                                T2(static_cast<T2&>(*op_splitter)){}
+
+
+            template <class T3, class T4, class T5>
+            void ops(memory::sizet_linear::VectorReadable<T3>& lhs, 
+                     memory::sizet_linear::VectorReadable<T4>& rhs, 
+                     memory::sizet_linear::ReallocatableOperatableVector<T5>& op){
+                
+                if (lhs.length() < rhs.length()){
+
+                    this->ops(rhs, lhs, op);
+
+                }
+
+                op.resize_no_copy(T::get(lhs, rhs));
+                size_t init_length = 0; 
+
+                if (rhs.length() < DEFAULT_SKIP_LENGTH){
+
+                    Default_Replace_Mul::ops(lhs, rhs, op);
+
+                } else{
+
+                    if (rhs.length() < SKIP_LENGTH){
+                        
+                        auto _mul_splitted = T1::split(rhs, DEFAULT_SKIP_LENGTH); 
+                        Default_Replace_Mul::ops(lhs, _mul_splitted.first, op);
+
+                        init_length = DEFAULT_SKIP_LENGTH;
+
+                    } else{
+                        
+                        auto _mul_splitted = T1::split(rhs, SKIP_LENGTH);
+                        Norm_Replace_Mul::ops(lhs, _mul_splitted.first, op);
+
+                        init_length = SKIP_LENGTH;
+                    
+                    }
+                    
+                    auto mul_splitted = T1::split(rhs, init_length);
+                    auto op_splitted = T2::split(*op.to_operatable_vector(), init_length);
+
+                    auto cur = mul_splitted.second;
+                    auto op_cur = op_splitted.second; 
+
+                    while (cur.length() >= SKIP_LENGTH){
+
+                        mul_splitted = T1::split(cur, SKIP_LENGTH);
+                        op_splitted = T2::split(op_cur, SKIP_LENGTH); 
+
+                        Norm_Append_Mul::ops(lhs, mul_splitted.first, op_cur);
+                        
+                        cur = mul_splitted.second;
+                        op_cur = op_splitted.second;
+
+                    }
+
+                    while (cur.length() >= DEFAULT_SKIP_LENGTH){
+
+                        mul_splitted = T1::split(cur, DEFAULT_SKIP_LENGTH);
+                        op_splitted = T2::split(op_cur, DEFAULT_SKIP_LENGTH);
+
+                        Default_Append_Mul::ops(lhs, mul_splitted.first, op_cur);
+
+                        cur = mul_splitted.second; 
+                        op_cur = op_splitted.second;
+
+                    }
+
+                    if (cur.length() != 0){
+                        
+                        Default_Append_Mul::ops(lhs, cur, op_cur);
+
+                    }
+
+                } 
+
+                this->zero_trim(op);
+
+            }
+        
+        private:
+
+            template <class T3>
+            void zero_trim(memory::sizet_linear::ReallocatableOperatableVector<T3>& rs){
+
+                size_t n = rs.length();
+
+                while ((n > 1) && (rs.get(n - 1) == 0)){
+
+                    --n;
+
+                }
+
+                rs.resize(n);
+
+            }
+
+    };
+
+};
+
 namespace bignum::vector::immutable_operation{
     
     template <class T, unsigned>
@@ -4492,8 +5332,8 @@ namespace bignum::vector::immutable_operation{
                 while (i < rhs.length()){
 
                     carry += rhs.get(i) + lhs.get(i);
-                    rs.set(i, carry & MAX_VAL_PER_SLOT);
-                    carry >>= BIT_LENGTH_PER_SLOT;
+                    rs.set(i, carry & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    carry >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
                     ++i;
 
                 }
@@ -4501,8 +5341,8 @@ namespace bignum::vector::immutable_operation{
                 while (carry && (i < lhs.length())){
 
                     carry += lhs.get(i);
-                    rs.set(i, carry & MAX_VAL_PER_SLOT);
-                    carry >>= BIT_LENGTH_PER_SLOT;
+                    rs.set(i, carry & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    carry >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
                     ++i;
 
                 }
@@ -4561,7 +5401,7 @@ namespace bignum::vector::immutable_operation{
 
                     while (minus_rs < 0){
 
-                        minus_rs += MAX_VAL_PER_SLOT + 1;
+                        minus_rs += BIGNUM_VECTOR_MAX_VAL_PER_SLOT + 1;
                         borrow += 1;
 
                     }
@@ -4577,7 +5417,7 @@ namespace bignum::vector::immutable_operation{
                     
                     if (minus_rs < 0){
 
-                        minus_rs += MAX_VAL_PER_SLOT + 1;
+                        minus_rs += BIGNUM_VECTOR_MAX_VAL_PER_SLOT + 1;
                         borrow = 1;
 
                     } else{
@@ -4621,7 +5461,7 @@ namespace bignum::vector::immutable_operation{
 
             std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator;
             
-            const uint8_t BIT_PER_LIMB = BIT_LENGTH_PER_SLOT >> 1;
+            const uint8_t BIT_PER_LIMB = BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT >> 1;
             const uint8_t LIMB_PER_SLOT = 2;
 
             template <class U, class U1, class U2>
@@ -4634,7 +5474,7 @@ namespace bignum::vector::immutable_operation{
             TwoLimbMultiplication(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator,
                                   std::shared_ptr<operation_utility::Estimatable<T2>> estimator): T2(static_cast<T2&>(*estimator)){
                 
-                assert(BIT_LENGTH_PER_SLOT % 2 == 0);
+                assert(BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT % 2 == 0);
                 
                 this->allocator = allocator;
 
@@ -4808,8 +5648,8 @@ namespace bignum::vector::immutable_operation{
                 for (i = 0; i < rhs.length(); ++i){
 
                     carry += lhs_0 * rhs.get(i);
-                    op.set(i, carry & MAX_VAL_PER_SLOT);
-                    carry >>= BIT_LENGTH_PER_SLOT; 
+                    op.set(i, carry & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    carry >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT; 
 
                 }
 
@@ -4835,8 +5675,8 @@ namespace bignum::vector::immutable_operation{
                     for (j = 0; j < rhs.length(); ++j){
 
                         carry += static_cast<DoubleWord>(lhs.get(i)) * rhs.get(j) + op.get(idx);
-                        op.set(idx, carry & MAX_VAL_PER_SLOT);
-                        carry >>= BIT_LENGTH_PER_SLOT;
+                        op.set(idx, carry & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                        carry >>= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                         ++idx; 
 
@@ -4861,175 +5701,6 @@ namespace bignum::vector::immutable_operation{
                 op.resize(n);
                 
             }
-
-    };
-
-    template <class T, class T1, class DoubleWord, class ID>
-    class ThreeWordMultiplication: public Operatable<ThreeWordMultiplication<T, T1, DoubleWord, ID>>,
-                                   private T, private T1{
-        
-        private:
-
-            struct ThreeLimbMul{
-
-                size_t lo;
-                size_t mid;
-                size_t hi;
-
-                constexpr ThreeLimbMul(): lo(0), mid(0), hi(0){}
-                
-                ThreeLimbMul(DoubleWord dw){
-
-                    constexpr size_t MAX_VAL = MAX_VAL_PER_SLOT; 
-                    constexpr size_t LIMB_LENGTH = BIT_LENGTH_PER_SLOT; 
-
-                    this->lo = dw & MAX_VAL;
-                    this->mid = dw >> LIMB_LENGTH;
-                    this->hi = 0;
-
-                }  
-
-                ThreeLimbMul(const ThreeLimbMul&) = default;
-                ThreeLimbMul(ThreeLimbMul&&) = default;
-                ThreeLimbMul& operator = (const ThreeLimbMul&) = default;
-                ThreeLimbMul& operator = (ThreeLimbMul&&) = default;
-
-                inline void plus(ThreeLimbMul& rhs){
-
-                    constexpr size_t MAX_VAL = MAX_VAL_PER_SLOT; 
-                    constexpr size_t LIMB_LENGTH = BIT_LENGTH_PER_SLOT; 
-
-                    this->lo += rhs.lo;
-                    this->mid += rhs.mid + this->lo >> LIMB_LENGTH;
-                    this->hi += rhs.hi + this->mid >> LIMB_LENGTH;
-                    this->lo &= MAX_VAL;
-                    this->mid &= MAX_VAL;
-
-                }
-                
-                inline void one_word_right_shift(){
-
-                    this->lo = this->mid;
-                    this->mid = this->hi;
-                    this->hi = 0;
-
-                } 
-                
-                inline ThreeLimbMul immutable_one_word_mul_no_high(size_t val){
-
-                    ThreeLimbMul rs;
-
-                    constexpr size_t MAX_VAL = MAX_VAL_PER_SLOT; 
-                    constexpr size_t LIMB_LENGTH = BIT_LENGTH_PER_SLOT; 
-
-                    DoubleWord buf_lo = static_cast<DoubleWord>(this->lo) * val;
-                    DoubleWord buf_mid = static_cast<DoubleWord>(this->mid) * val; 
-
-                    rs.mid = this->mid + buf_lo >> LIMB_LENGTH;
-                    rs.hi = this->hi + buf_mid >> LIMB_LENGTH;
-
-                    rs.lo = buf_lo & MAX_VAL;
-                    rs.mid = buf_mid & MAX_VAL;
-
-                    return rs;
-
-                }
-
-                bool is_zero(){
-
-                    return (this->lo | this->mid | this->hi) == 0;
-
-                }
-
-                inline size_t get_lo_word(){
-
-                    return this->lo;
-
-                }
-
-                inline size_t get_mid_word(){
-
-                    return this->mid;
-
-                }
-
-                inline size_t get_hi_word(){
-
-                    return this->hi;
-
-                }
-                    
-            };
-
-
-        public:
-
-            using Operatable<ThreeWordMultiplication<T, T1, DoubleWord, ID>>::to_operatable_sp;
-
-            ThreeWordMultiplication(){}
-
-            ThreeWordMultiplication(std::shared_ptr<operation_utility::Estimatable<T>> estimator,
-                                    std::shared_ptr<Operatable<T1>> two_word_mul): T(static_cast<T&>(*estimator)),
-                                                                                   T1(static_cast<T1&>(*two_word_mul)){}
-            
-            template <class T2, class T3, class T4>
-            void ops(memory::sizet_linear::VectorReadable<T2>& lhs, memory::sizet_linear::VectorReadable<T3>& rhs, memory::sizet_linear::ReallocatableOperatableVector<T4>& op){
-                
-                if (lhs.length() > rhs.length()){
-
-                    this->ops(rhs, lhs, op);
-                    
-                    return;
-
-                }
-
-                if (lhs.length() == 1){
-
-                    T1::ops(lhs, rhs, op);
-
-                    return;
-
-                }
-
-                assert(lhs.length() == 2);
-
-                DoubleWord dw_multiplier = (static_cast<DoubleWord>(lhs.get(1)) << BIT_LENGTH_PER_SLOT) | lhs.get(0);
-
-                ThreeLimbMul multiplier(dw_multiplier);
-                ThreeLimbMul carry;
-                ThreeLimbMul mul_rs;
-                size_t i = 0;
-
-                op.resize_no_copy(T::get(lhs, rhs));
-
-                for (i = 0; i < rhs.length(); ++i){
-
-                    mul_rs = multiplier.immutable_one_word_mul_no_high(rhs.get(i));
-                    carry.plus(mul_rs);
-
-                    op.set(i, carry.get_lo_word());
-                    carry.one_word_right_shift();
-
-                }
-
-                while (!carry.is_zero()){
-
-                    op.set(i, carry.get_lo_word());
-                    carry.one_word_right_shift();
-                    ++i;
-
-                }
-                
-                while ((i > 1) && (op.get(i - 1) == 0)){
-
-                    --i;
-
-                }
-
-                op.resize(i);
-
-            } 
-
 
     };
 
@@ -5194,7 +5865,7 @@ namespace bignum::vector::immutable_operation{
                 this->temp_gen_allocator->enter_scope();
 
                 size_t split_point = lhs.length() >> 1;                 
-                size_t lower_bit_length = split_point * BIT_LENGTH_PER_SLOT;
+                size_t lower_bit_length = split_point * BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                 auto lhs_splitted = T::split(lhs, split_point);
                 auto rhs_splitted = T::split(rhs, split_point);
@@ -5236,6 +5907,186 @@ namespace bignum::vector::immutable_operation{
 
     };
     
+    template <class T, class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
+    class FastKaratsubaMultiplicationOperator: public Operatable<FastKaratsubaMultiplicationOperator<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>,
+                                               private T, private T1, private T2, private T3, private T4, private T5, private T7, private T8{
+
+        private:
+
+            std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T6>> temp_gen_allocator;
+            const uint8_t NAIVE_MUL_THRESHOLD = 50;            
+
+        public:
+
+            using Operatable<FastKaratsubaMultiplicationOperator<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>::to_operatable_sp;
+
+            FastKaratsubaMultiplicationOperator() {};
+
+            FastKaratsubaMultiplicationOperator(std::shared_ptr<operation_utility::VectorViewSplittable<T>> splitter,
+                                                std::shared_ptr<Operatable<T1>> plus_ops,
+                                                std::shared_ptr<Operatable<T2>> minus_ops,
+                                                std::shared_ptr<mutable_operation::Operatable<T3>> mutable_plus_ops,
+                                                std::shared_ptr<Operatable<T4>> multiplier,
+                                                std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T5>> temp_gen,
+                                                std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T6>> temp_gen_allocator,
+                                                std::shared_ptr<operation_utility::Estimatable<T7>> estimator,
+                                                std::shared_ptr<memory::sizet_linear::OffsetReallocatableVectorGeneratable<T8>> offset_vec_gen): T(static_cast<T&>(*splitter)),
+                                                                                                                                                 T1(static_cast<T1&>(*plus_ops)),
+                                                                                                                                                 T2(static_cast<T2&>(*minus_ops)),
+                                                                                                                                                 T3(static_cast<T3&>(*mutable_plus_ops)),
+                                                                                                                                                 T4(static_cast<T4&>(*multiplier)),
+                                                                                                                                                 T5(static_cast<T5&>(*temp_gen)),
+                                                                                                                                                 T7(static_cast<T7&>(*estimator)),
+                                                                                                                                                 T8(static_cast<T8&>(*offset_vec_gen)){
+
+                this->temp_gen_allocator = temp_gen_allocator;
+
+            }
+
+        public:
+
+            template <class T9, class T10, class T11>
+            void ops(memory::sizet_linear::VectorReadable<T9>& lhs, memory::sizet_linear::VectorReadable<T10>& rhs, memory::sizet_linear::ReallocatableOperatableVector<T11>& rs){
+
+                if (lhs.length() < rhs.length()){
+
+                    this->ops(rhs, lhs, rs);
+
+                    return;
+
+                }
+
+                if (rhs.length() <= NAIVE_MUL_THRESHOLD){
+                    
+                    T4::ops(lhs, rhs, rs);
+
+                    return; 
+
+                }
+
+                this->temp_gen_allocator->enter_scope();
+                this->rec_ops(lhs, rhs, rs);
+                this->temp_gen_allocator->exit_scope();
+
+            }
+
+        private:
+
+            template <class T9, class T10, class T11>
+            void rec_ops(memory::sizet_linear::VectorReadable<T9>& lhs, memory::sizet_linear::VectorReadable<T10>& rhs, memory::sizet_linear::ReallocatableOperatableVector<T11>& rs){
+
+                if (lhs.length() < rhs.length()){
+
+                    this->rec_ops(rhs, lhs, rs);
+
+                    return;
+
+                }
+
+                if (rhs.length() <= NAIVE_MUL_THRESHOLD){
+                    
+                    T4::ops(lhs, rhs, rs);
+
+                    return; 
+
+                }
+                
+                this->temp_gen_allocator->enter_scope();
+
+                size_t split_point = lhs.length() >> 1;                 
+
+                auto lhs_splitted = T::split(lhs, split_point);
+                auto rhs_splitted = T::split(rhs, split_point);
+
+                auto p1 = T5::get();
+                auto p2 = T5::get();
+                auto p3 = T5::get();
+                auto z1 = T5::get();
+                auto z2 = T5::get();
+                auto z3 = T5::get();
+                auto z4 = T5::get();
+
+                T1::ops(lhs_splitted.first, lhs_splitted.second, p1);
+                T1::ops(rhs_splitted.first, rhs_splitted.second, p2);
+
+                z1.resize_no_copy(T7::get(lhs_splitted.first, rhs_splitted.first));
+                z2.resize_no_copy(T7::get(lhs_splitted.second, rhs_splitted.second));
+                z3.resize_no_copy(T7::get(*p1.to_vector_readable(), *p2.to_vector_readable()));
+
+                this->rec_ops(lhs_splitted.first, rhs_splitted.first, z1);
+                this->rec_ops(lhs_splitted.second, rhs_splitted.second, z2);
+                this->rec_ops(*p1.to_vector_readable(), *p2.to_vector_readable(), z3);    
+
+                T1::ops(*z1.to_vector_readable(), *z2.to_vector_readable(), p3);
+                T2::ops(*z3.to_vector_readable(), *p3.to_vector_readable(), z4);
+                
+                size_t double_split = split_point * 2;
+
+                rs.resize_no_copy(T7::get(lhs, rhs));
+                this->zero_init_assign(*rs.to_operatable_vector(), *z1.to_vector_readable());
+
+                if (rs.length() > double_split){
+                                        
+                    auto offset_vec = T8::get(rs, double_split); 
+
+                    auto z2_offset = T::split(*z2.to_vector_readable(), 0).second;
+                    auto z4_offset = T::split(*z4.to_vector_readable(), split_point).second; 
+
+                    T3::ops(*offset_vec.to_operatable_vector(), *z2_offset.to_vector_readable());
+                    T3::ops(*offset_vec.to_operatable_vector(), *z4_offset.to_vector_readable());
+
+                }
+
+                if (rs.length() > split_point){
+
+                    auto offset_vec = T8::get(rs, split_point);
+                    auto z4_offset = T::split(*z4.to_vector_readable(), split_point).first; 
+
+                    T3::ops(*offset_vec.to_operatable_vector(), *z4_offset.to_vector_readable());
+
+                }
+
+                this->zero_trim(rs);
+                this->temp_gen_allocator->exit_scope(false); 
+
+            }
+
+            template <class T9>
+            void zero_trim(memory::sizet_linear::ReallocatableOperatableVector<T9>& vec){
+
+                size_t n = vec.length();
+
+                while ((n > 1) && (vec.get(n - 1) == 0)){
+
+                    --n;
+
+                } 
+
+                vec.resize(n);
+
+            }
+
+            template <class T9, class T10>
+            void zero_init_assign(memory::sizet_linear::OperatableVector<T9>& lhs, memory::sizet_linear::VectorReadable<T10>& rhs){
+                
+                assert(rhs.length() <= lhs.length());
+
+                for (size_t i = 0; i < rhs.length(); ++i){
+
+                    lhs.set(i, rhs.get(i));
+
+                }
+
+                for (size_t i = rhs.length(); i < lhs.length(); ++i){
+
+                    lhs.set(i, 0);
+
+                }
+
+            }
+            
+    };
+
     template <class T, class ID>
     class CustomPairWiseOperator: public PairWiseOperatable<CustomPairWiseOperator<T, ID>>,
                                   private T{
@@ -5440,7 +6291,7 @@ namespace bignum::vector::immutable_operation{
 
                 for (intmax_t i = lhs.length() - 1; i >= 0; --i){
 
-                    carry_val <<= BIT_LENGTH_PER_SLOT;
+                    carry_val <<= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
                     carry_val |= lhs.get(i);
                     div_val = carry_val / divisor;
                     carry_val %= divisor;
@@ -5474,7 +6325,7 @@ namespace bignum::vector::immutable_operation{
 
                 for (intmax_t i = lhs.length() - 1; i >= 0; --i){
 
-                    carry_val <<= BIT_LENGTH_PER_SLOT;
+                    carry_val <<= BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
                     carry_val |= lhs.get(i);
                     div_val = carry_val / divisor;
                     carry_val %= divisor;
@@ -5514,6 +6365,118 @@ namespace bignum::vector::immutable_operation{
         private:
 
             std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T10>> allocator; 
+            
+            class IncVector: public memory::sizet_linear::VectorReadable<IncVector>,
+                             private memory::sizet_linear::StandardVectorView{
+                
+                public:
+
+                    using Interface = memory::sizet_linear::VectorReadable<IncVector>;
+                    using Base = memory::sizet_linear::StandardVectorView;
+
+                    using Interface::to_vector_readable;
+                    using Interface::sizeof_slot;
+                    using Base::length;
+
+                    IncVector(){}
+
+                    template <class T13>
+                    IncVector(memory::sizet_linear::VectorReadable<T13>& data): Base((size_t *) data.get_data(), data.length()){}
+
+                    size_t get(size_t idx){
+
+                        if (idx == 0){
+                            
+                            return Base::get(0) + 1; 
+
+                        }
+
+                        return Base::get(idx);
+
+                    }
+
+                    void * get_data(bool safety_checked = false){
+
+                        assert(safety_checked);
+
+                        return Base::get_data();
+
+                    }
+
+            };
+
+            class NegIncVector: public memory::sizet_linear::VectorReadable<NegIncVector>,
+                                private memory::sizet_linear::StandardVectorView{
+                
+                private:
+
+                    size_t inc_val; 
+
+                public:
+
+                    using Interface = memory::sizet_linear::VectorReadable<NegIncVector>;
+                    using Base = memory::sizet_linear::StandardVectorView;
+
+                    using Interface::to_vector_readable;
+                    using Interface::sizeof_slot;
+
+                    using Base::length;
+
+                    NegIncVector(){}
+
+                    template <class T13>
+                    NegIncVector(memory::sizet_linear::VectorReadable<T13>& data, size_t inc_val): Base((size_t *) data.get_data(), data.length()){
+
+                        size_t n = data.length();
+
+                        while ((n > 1) && (this->get(n - 1) == 0)){
+
+                            --n;
+
+                        } 
+
+                        Base::operator = (Base((size_t *) data.get_data(), n));
+                        this->inc_val = inc_val;
+
+                    }
+
+                    template <class T13>
+                    NegIncVector(memory::sizet_linear::VectorReadable<T13>& data): Base((size_t *) data.get_data(), data.length()){
+
+                        size_t n = data.length();
+
+                        while ((n > 1) && (this->get(n - 1) == 0)){
+
+                            --n;
+
+                        } 
+
+                        Base::operator = (Base((size_t *) data.get_data(), n));
+                        this->inc_val = 0;
+
+                    }
+
+                    size_t get(size_t idx){
+
+                        if (idx == 0){
+                            
+                            return ((~(Base::get(0) + this->inc_val)) & BIGNUM_VECTOR_MAX_VAL_PER_SLOT) + 1; 
+
+                        }
+
+                        return (~Base::get(idx)) & BIGNUM_VECTOR_MAX_VAL_PER_SLOT;
+
+                    }
+
+                    void * get_data(bool safety_checked = false){
+
+                        assert(safety_checked);
+
+                        return Base::get_data(); 
+
+                    }
+
+            };      
 
         public:
 
@@ -5522,9 +6485,9 @@ namespace bignum::vector::immutable_operation{
 
             StdDivider() {}
 
-            StdDivider(std::shared_ptr<mutable_operation::Operatable<T>> minus_ops,
+            StdDivider(std::shared_ptr<mutable_operation::Operatable<T>> minus_ops, 
                        std::shared_ptr<operation_utility::Estimatable<T0>> plus_est,
-                       std::shared_ptr<Operatable<T1>> mul_ops,
+                       std::shared_ptr<InPlaceOperatable<T1>> inplace_mul_ops,
                        std::shared_ptr<comparer::Comparable<T2>> comparer,
                        std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T3>> temp_vec_gen,
                        std::shared_ptr<Divisible<T4>> div_ops,
@@ -5537,7 +6500,7 @@ namespace bignum::vector::immutable_operation{
                        std::shared_ptr<operation_utility::VectorViewSplittable<T11>> raw_splitter,
                        std::shared_ptr<operation_utility::VectorViewTrimmable<T12>> view_trimmer):T(static_cast<T&>(*minus_ops)),
                                                                                                   T0(static_cast<T0&>(*plus_est)),
-                                                                                                  T1(static_cast<T1&>(*mul_ops)),
+                                                                                                  T1(static_cast<T1&>(*inplace_mul_ops)),
                                                                                                   T2(static_cast<T2&>(*comparer)),
                                                                                                   T3(static_cast<T3&>(*temp_vec_gen)),
                                                                                                   T4(static_cast<T4&>(*div_ops)),
@@ -5575,27 +6538,41 @@ namespace bignum::vector::immutable_operation{
 
                 }
 
-                this->allocator->enter_scope();
-
                 size_t split_point = rhs.length() >> 1;
                 auto rhs_splitted = T11::split(rhs, split_point);
-                auto inc = this->get_incrementor();
-                auto divisor = T3::get();
-                auto neg_inc = T3::get();
 
-                neg_inc.resize_no_copy(split_point + 1);
                 rs.resize_no_copy(T8::get(*lhs.to_vector_readable(), rhs));
                 this->zero_init(*rs.to_operatable_vector());
-                this->neg_assign(*neg_inc.to_operatable_vector(), rhs_splitted.first);
 
-                T6::ops(rhs_splitted.second, *inc.to_vector_readable(), divisor); 
-                T5::ops(*neg_inc.to_operatable_vector(), *inc.to_vector_readable());
-                this->zero_trim(neg_inc);
+                if ((rhs_splitted.second.get(0) < BIGNUM_VECTOR_MAX_VAL_PER_SLOT) && (rhs_splitted.first.get(0) != 0)){
+                    
+                    auto divisor = IncVector(*rhs_splitted.second.to_vector_readable());
+                    auto neg_inc = NegIncVector(*rhs_splitted.first.to_vector_readable()); 
 
-                this->recursive_ops(lhs, rhs, *divisor.to_vector_readable(), split_point, *neg_inc.to_vector_readable(), rs);
+                    this->recursive_ops(lhs, rhs, divisor, split_point, *neg_inc.to_vector_readable(), rs);
+
+                } else{
+
+                    this->allocator->enter_scope();
+
+                    auto divisor = T3::get();
+                    auto neg_inc = T3::get();
+                    auto inc = this->get_incrementor();
+
+                    neg_inc.resize_no_copy(split_point + 1);
+                    this->neg_assign(*neg_inc.to_operatable_vector(), *rhs_splitted.first.to_vector_readable());
+
+                    T6::ops(*rhs_splitted.second.to_vector_readable(), *inc.to_vector_readable(), divisor); 
+                    T5::ops(*neg_inc.to_operatable_vector(), *inc.to_vector_readable());
+                    this->zero_trim(neg_inc);
+
+                    this->recursive_ops(lhs, rhs, *divisor.to_vector_readable(), split_point, *neg_inc.to_vector_readable(), rs);
+
+                    this->allocator->exit_scope();
+
+                }
+
                 this->zero_trim(rs);
-
-                this->allocator->exit_scope(false);
 
             }
 
@@ -5664,7 +6641,7 @@ namespace bignum::vector::immutable_operation{
 
                 for (size_t i = 0; i < rhs.length(); ++i){
 
-                    size_t val = (~rhs.get(i)) & MAX_VAL_PER_SLOT;
+                    size_t val = (~rhs.get(i)) & BIGNUM_VECTOR_MAX_VAL_PER_SLOT;
 
                     lhs.set(i, val);
 
@@ -5715,37 +6692,54 @@ namespace bignum::vector::immutable_operation{
 
             }
 
-            template <class T13>
-            void plus_prep(memory::sizet_linear::ReallocatableOperatableVector<T13>& lhs,
-                           size_t legal_length, size_t est_length){
+            template <class T13, class T15>
+            void inplace_ops(memory::sizet_linear::ReallocatableOperatableVector<T13>& lhs, 
+                             IncVector& rhs, 
+                             memory::sizet_linear::ReallocatableOperatableVector<T15>& rs){
+                                
+                if (rhs.length() == 1){
+                                        
+                    T4::inplace_ops(lhs, *rhs.to_vector_readable(), rs);
+
+                    return;
+
+                }
+
+                if (T2::compare(*lhs.to_vector_readable(), *rhs.to_vector_readable()) < 0){
+                    
+                    rs.resize_no_copy(1);
+                    rs.set(0, 0);
+                    
+                    return;
+
+                }
+
+                size_t split_point = rhs.length() >> 1;
                 
-                assert(legal_length <= lhs.length());
+                if ((rhs.get(split_point) < BIGNUM_VECTOR_MAX_VAL_PER_SLOT) && (rhs.get(0) != 0)){
+                    
+                    auto rhs_splitted_first = memory::sizet_linear::StandardVectorView((size_t *) rhs.get_data(true), split_point);
+                    auto rhs_splitted_second = memory::sizet_linear::StandardVectorView((size_t *) rhs.get_data(true) + split_point, rhs.length() - split_point);
 
-                if (est_length <= legal_length){
+                    rs.resize_no_copy(T8::get(*lhs.to_vector_readable(), *rhs.to_vector_readable()));
+                    this->zero_init(*rs.to_operatable_vector());
 
-                    lhs.resize(est_length);
+                    auto divisor = IncVector(*rhs_splitted_second.to_vector_readable());
+                    auto neg_inc = NegIncVector(*rhs_splitted_first.to_vector_readable(), 1); 
 
-                    return;
+                    this->recursive_ops(lhs, *rhs.to_vector_readable(), divisor, split_point, *neg_inc.to_vector_readable(), rs);
+                    this->zero_trim(rs);
 
-                }
 
-                if (est_length <= lhs.length()){
+                } else{
+                      
+                    this->allocator->enter_scope();
 
-                    for (size_t i = legal_length; i < est_length; ++i){
+                    auto rhs_cp = T3::get();
+                    this->assign(rhs_cp, *rhs.to_vector_readable()); //devirtualization
+                    this->inplace_ops(lhs, *rhs_cp.to_vector_readable(), rs);
 
-                        lhs.set(i, 0);
-
-                    }
-
-                    lhs.resize(est_length);
-
-                    return;
-
-                }
-
-                for (size_t i = legal_length; i < lhs.length(); ++i){
-
-                    lhs.set(i, 0);
+                    this->allocator->exit_scope();
 
                 }
 
@@ -5754,11 +6748,11 @@ namespace bignum::vector::immutable_operation{
             template <class T13, class T14, class T15, class T16, class T17>
             void recursive_ops(memory::sizet_linear::ReallocatableOperatableVector<T13>& lhs, 
                                memory::sizet_linear::VectorReadable<T14>& rhs, 
-                               memory::sizet_linear::VectorReadable<T15>& divisor,
+                               T15&& divisor,
                                size_t split_point, 
                                memory::sizet_linear::VectorReadable<T16>& neg_inc,
                                memory::sizet_linear::ReallocatableOperatableVector<T17>& rs){ 
-                                
+
                 if (T2::compare(*lhs.to_vector_readable(), rhs) < 0){
 
                     return;
@@ -5768,11 +6762,10 @@ namespace bignum::vector::immutable_operation{
                 this->allocator->enter_scope();
                 
                 auto lhs_offset_vec = T9::get(lhs, split_point);
-                auto est_multiplier = T3::get();
-                auto rem_val = T3::get(); 
+                auto est_multiplier = T3::get(); 
                 auto inc = this->get_incrementor();
 
-                est_multiplier.resize_no_copy(T8::get(*lhs_offset_vec.to_vector_readable(), divisor));
+                est_multiplier.resize_no_copy(T8::get(*lhs_offset_vec.to_vector_readable(), *divisor.to_vector_readable()));
 
                 this->inplace_ops(lhs_offset_vec, divisor, est_multiplier);    
 
@@ -5782,20 +6775,15 @@ namespace bignum::vector::immutable_operation{
                     T::ops(*lhs.to_operatable_vector(), rhs);
 
                 } else {
+                                        
+                    auto trailing = T9::get(lhs, split_point + lhs_offset_vec.length());
+                    this->zero_init(*trailing.to_operatable_vector()); 
                     
-                    auto lhs_splitted = T11::split(*lhs.to_vector_readable(), split_point + lhs_offset_vec.length()); 
-                    auto first_trimmed = T12::trim(lhs_splitted.first); 
-
-                    rem_val.resize_no_copy(T7::get(*est_multiplier.to_vector_readable(), neg_inc));
-
-                    T1::ops(*est_multiplier.to_vector_readable(), neg_inc, rem_val);
+                    T1::ops(*est_multiplier.to_vector_readable(), neg_inc, *lhs.to_operatable_vector());
                     T5::ops(*rs.to_operatable_vector(), *est_multiplier.to_vector_readable());
 
-                    this->plus_prep(lhs, split_point + lhs_offset_vec.length(), T0::get(first_trimmed, *rem_val.to_vector_readable()));
-                    T5::ops(*lhs.to_operatable_vector(), *rem_val.to_vector_readable());
-
                 }
-                
+
                 this->zero_trim(lhs);
                 this->recursive_ops(lhs, rhs, divisor, split_point, neg_inc, rs);
                 
@@ -5806,10 +6794,10 @@ namespace bignum::vector::immutable_operation{
 
     };
 
-    template <class T, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
-    class StdLongDivider: public Divisible<StdLongDivider<T, T2, T3, T4, T5, T6, T7, T8, ID>>,
-                          private T, private T2, private T3, private T5, private T6,
-                          private T7, private T8{
+    template <class T, class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
+    class StdLongDivider: public Divisible<StdLongDivider<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>,
+                          private T, private T1, private T2, private T3, private T5, 
+                          private T6, private T7, private T8{
 
         private:
 
@@ -5817,12 +6805,13 @@ namespace bignum::vector::immutable_operation{
 
         public:
 
-            using Divisible<StdLongDivider<T, T2, T3, T4, T5, T6, T7, T8, ID>>::to_operatable_sp;
-            using Divisible<StdLongDivider<T, T2, T3, T4, T5, T6, T7, T8, ID>>::to_divisible_sp;
+            using Divisible<StdLongDivider<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>::to_operatable_sp;
+            using Divisible<StdLongDivider<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>::to_divisible_sp;
 
             StdLongDivider(){}
 
             StdLongDivider(std::shared_ptr<Divisible<T>> base_case_div,
+                           std::shared_ptr<Divisible<T1>> six_step_base_case_div,
                            std::shared_ptr<operation_utility::Estimatable<T2>> estimator,
                            std::shared_ptr<comparer::Comparable<T3>> comparer,
                            std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T4>> allocator,
@@ -5830,6 +6819,7 @@ namespace bignum::vector::immutable_operation{
                            std::shared_ptr<operation_utility::VectorViewSplittable<T6>> raw_view_splitter,
                            std::shared_ptr<memory::sizet_linear::OffsetReallocatableVectorGeneratable<T7>> offset_vec_gen,
                            std::shared_ptr<mutable_operation::Operatable<T8>> plus_ops): T(static_cast<T&>(*base_case_div)),
+                                                                                         T1(static_cast<T1&>(*six_step_base_case_div)),
                                                                                          T2(static_cast<T2&>(*estimator)),
                                                                                          T3(static_cast<T3&>(*comparer)),
                                                                                          T5(static_cast<T5&>(*temp_vec_gen)),
@@ -5863,7 +6853,8 @@ namespace bignum::vector::immutable_operation{
 
                 }
 
-                const size_t MAX_DIV_LENGTH = 2;
+                const size_t SKIP_DELTA = 5;
+                const size_t MAX_DIV_LENGTH = 6;
                 memory::sizet_linear::StandardStackAllocatedVector<MAX_DIV_LENGTH> div_rs; 
 
                 size_t est_n = T2::get(lhs, rhs);
@@ -5875,29 +6866,43 @@ namespace bignum::vector::immutable_operation{
                     
                 }
                 
+                while (lhs.length() >= rhs.length() + SKIP_DELTA){
+
+                    size_t i = lhs.length() - rhs.length() - SKIP_DELTA;
+                    auto mod_rs = T7::get(lhs, i);
+
+                    T1::inplace_ops(mod_rs, rhs, div_rs);
+
+                    lhs.resize(i + mod_rs.length());
+                    this->zero_trim(lhs);
+
+                    auto offset_rs = T7::get(rs, i);
+                    T8::ops(*offset_rs.to_operatable_vector(), *div_rs.to_vector_readable());
+
+                }
+
+                while (lhs.length() > rhs.length()){
+
+                    size_t i = lhs.length() - rhs.length() - 1;
+                    auto mod_rs = T7::get(lhs, i);
+
+                    T::inplace_ops(mod_rs, rhs, div_rs);
+
+                    lhs.resize(i + mod_rs.length());
+                    this->zero_trim(lhs);
+
+                    auto offset_rs = T7::get(rs, i);
+                    T8::ops(*offset_rs.to_operatable_vector(), *div_rs.to_vector_readable());
+
+                }
+
                 while (T3::compare(*lhs.to_vector_readable(), rhs) >= 0){
                     
-                    for (intmax_t i = lhs.length() - rhs.length(); i >= 0; --i){
+                    T::inplace_ops(lhs, rhs, div_rs);
+                    this->zero_trim(lhs);
 
-                        auto splitted = T6::split(*lhs.to_vector_readable(), i);
-
-                        if (T3::compare(splitted.second, rhs) >= 0){
-
-                            auto mod_rs = T7::get(lhs, i);
-
-                            T::inplace_ops(mod_rs, rhs, div_rs);
-
-                            lhs.resize(i + mod_rs.length());
-                            this->zero_trim(lhs);
-
-                            auto offset_rs = T7::get(rs, i);
-                            T8::ops(*offset_rs.to_operatable_vector(), *div_rs.to_vector_readable());
-
-                            break;
-
-                        }
-
-                    }
+                    auto offset_rs = T7::get(rs, 0);
+                    T8::ops(*offset_rs.to_operatable_vector(), *div_rs.to_vector_readable());
 
                 }
 
@@ -6005,7 +7010,7 @@ namespace bignum::vector::immutable_operation{
             template <class T, class T0, class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class T9, class T10, class T11, class T12, class ID>
             std::shared_ptr<StdDivider<T, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, ID>> init_std_div (std::shared_ptr<mutable_operation::Operatable<T>> minus_ops,
                                                                                                                     std::shared_ptr<operation_utility::Estimatable<T0>> plus_est,
-                                                                                                                    std::shared_ptr<Operatable<T1>> mul_ops,
+                                                                                                                    std::shared_ptr<InPlaceOperatable<T1>> mul_ops,
                                                                                                                     std::shared_ptr<comparer::Comparable<T2>> comparer,
                                                                                                                     std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T3>> temp_vec_gen,
                                                                                                                     std::shared_ptr<Divisible<T4>> div_ops,
@@ -6057,15 +7062,25 @@ namespace bignum::vector::immutable_operation{
 
             }
 
-            template <class T, class T1, class DoubleWord, class ID>
-            std::shared_ptr<ThreeWordMultiplication<T, T1, DoubleWord, ID>> init_three_word_mul(std::shared_ptr<operation_utility::Estimatable<T>> estimator,
-                                                                                                std::shared_ptr<Operatable<T1>> two_word_mul,
-                                                                                                DoubleWord,
-                                                                                                ID){
+            template <class DoubleWord, class ID, unsigned Length>
+            std::shared_ptr<fast_mul::GenericWordMultiplication<DoubleWord, ID, Length>> init_append_generic_mul(){
                 
-                return std::make_shared<ThreeWordMultiplication<T, T1, DoubleWord, ID>>(estimator, two_word_mul);
+                return std::make_shared<fast_mul::GenericWordMultiplication<DoubleWord, ID, Length>>();
 
             } 
+
+            template <unsigned SKIP_LENGTH, class ID, class DoubleWord>
+            struct init_generic_mul{
+
+                template <class T, class T1, class T2>
+                std::shared_ptr<fast_mul::SkipMultiplication<T, T1, T2, DoubleWord, SKIP_LENGTH, ID>> get(std::shared_ptr<operation_utility::Estimatable<T>> estimator,
+                                                                                                          std::shared_ptr<operation_utility::VectorViewSplittable<T1>> view_splitter,
+                                                                                                          std::shared_ptr<operation_utility::OperatableVectorSplittable<T2>> op_splitter){
+
+                    return std::make_shared<fast_mul::SkipMultiplication<T, T1, T2, DoubleWord, SKIP_LENGTH, ID>>(estimator, view_splitter, op_splitter); 
+
+                }
+            };
 
             template <class T, class T1, class T2, class ID>
             std::shared_ptr<LShiftOperator<T, T1, T2, ID>> init_lshift(std::shared_ptr<operation_utility::ShiftEstimatable<T>> true_estimator,
@@ -6105,6 +7120,22 @@ namespace bignum::vector::immutable_operation{
 
             }
 
+            template <class T, class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
+            std::shared_ptr<FastKaratsubaMultiplicationOperator<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>> init_fast_karatsuba(std::shared_ptr<operation_utility::VectorViewSplittable<T>> splitter,
+                                                                                                                            std::shared_ptr<Operatable<T1>> plus_ops,
+                                                                                                                            std::shared_ptr<Operatable<T2>> minus_ops,
+                                                                                                                            std::shared_ptr<mutable_operation::Operatable<T3>> mutable_plus_ops,
+                                                                                                                            std::shared_ptr<Operatable<T4>> multiplier,
+                                                                                                                            std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T5>> temp_gen,
+                                                                                                                            std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T6>> temp_gen_allocator,
+                                                                                                                            std::shared_ptr<operation_utility::Estimatable<T7>> estimator,
+                                                                                                                            std::shared_ptr<memory::sizet_linear::OffsetReallocatableVectorGeneratable<T8>> offset_vec_gen,
+                                                                                                                            ID){
+                
+                return std::make_shared<FastKaratsubaMultiplicationOperator<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>(splitter, plus_ops, minus_ops, mutable_plus_ops, multiplier, temp_gen, temp_gen_allocator, estimator, offset_vec_gen);
+           
+            }
+
             template <class T, class ID>
             std::shared_ptr<CustomPairWiseOperator<T, ID>> init_custom_pairwise(std::shared_ptr<operation_utility::Estimatable<T>> estimator,
                                                                                 ID){
@@ -6129,18 +7160,19 @@ namespace bignum::vector::immutable_operation{
 
             }
 
-            template <class T, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
-            std::shared_ptr<StdLongDivider<T, T2, T3, T4, T5, T6, T7, T8, ID>> init_std_long_div(std::shared_ptr<Divisible<T>> base_case_div,
-                                                                                                 std::shared_ptr<operation_utility::Estimatable<T2>> estimator,
-                                                                                                 std::shared_ptr<comparer::Comparable<T3>> comparer,
-                                                                                                 std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T4>> allocator,
-                                                                                                 std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T5>> temp_vec_gen,
-                                                                                                 std::shared_ptr<operation_utility::VectorViewSplittable<T6>> view_splitter,
-                                                                                                 std::shared_ptr<memory::sizet_linear::OffsetReallocatableVectorGeneratable<T7>> offset_vec_gen,
-                                                                                                 std::shared_ptr<mutable_operation::Operatable<T8>> plus_ops,
-                                                                                                 ID){
+            template <class T, class T1, class T2, class T3, class T4, class T5, class T6, class T7, class T8, class ID>
+            std::shared_ptr<StdLongDivider<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>> init_std_long_div(std::shared_ptr<Divisible<T>> base_case_div,
+                                                                                                     std::shared_ptr<Divisible<T1>> ten_step_base_case_div,
+                                                                                                     std::shared_ptr<operation_utility::Estimatable<T2>> estimator,
+                                                                                                     std::shared_ptr<comparer::Comparable<T3>> comparer,
+                                                                                                     std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T4>> allocator,
+                                                                                                     std::shared_ptr<memory::sizet_linear::ReallocatableVectorGeneratable<T5>> temp_vec_gen,
+                                                                                                     std::shared_ptr<operation_utility::VectorViewSplittable<T6>> view_splitter,
+                                                                                                     std::shared_ptr<memory::sizet_linear::OffsetReallocatableVectorGeneratable<T7>> offset_vec_gen,
+                                                                                                     std::shared_ptr<mutable_operation::Operatable<T8>> plus_ops,
+                                                                                                     ID){
                 
-                return std::make_shared<StdLongDivider<T, T2, T3, T4, T5, T6, T7, T8, ID>>(base_case_div, estimator, comparer, allocator, temp_vec_gen, view_splitter, offset_vec_gen, plus_ops);
+                return std::make_shared<StdLongDivider<T, T1, T2, T3, T4, T5, T6, T7, T8, ID>>(base_case_div, ten_step_base_case_div, estimator, comparer, allocator, temp_vec_gen, view_splitter, offset_vec_gen, plus_ops);
 
             }
 
@@ -6151,6 +7183,28 @@ namespace bignum::vector::immutable_operation{
                 auto casted_estimator = estimator->to_estimatable_sp(estimator);
 
                 return this->init_basecase_div(casted_estimator, id_);
+
+            }
+
+            template <class DoubleWord, class ID, unsigned Length>
+            auto get_inplace_append_generic_mul(){
+
+                return this->init_append_generic_mul<DoubleWord, ID, Length>();
+
+            }
+
+            template <class DoubleWord, class ID, unsigned Length>
+            auto get_generic_mul(){     
+                
+                auto estimator = operation_utility::IDOperationUtilityGenerator().get_multiply_estimator(DoubleID<ID, 0>());
+                auto splitter = operation_utility::IDOperationUtilityGenerator().get_raw_splitter(DoubleID<ID, 1>());
+                auto op_splitter = operation_utility::IDOperationUtilityGenerator().get_raw_operatable_vector_splitter(DoubleID<ID, 2>());
+
+                auto casted_estimator = estimator->to_estimatable_sp(estimator);
+                auto casted_splitter = splitter->to_view_splittable_sp(splitter);
+                auto casted_op_splitter = op_splitter->to_op_splittable_sp(op_splitter);
+
+                return init_generic_mul<Length, ID, DoubleWord>().get(casted_estimator, casted_splitter, casted_op_splitter);
 
             }
 
@@ -6187,7 +7241,7 @@ namespace bignum::vector::immutable_operation{
                 auto casted_read_iter = read_iter->to_bit_iterator_generatable_sp(read_iter);
                 auto casted_write_iter = write_iter->to_bit_iter_writer_generatable_sp(write_iter);
 
-                return this->init_lshift(casted_estimator, casted_read_iter, casted_write_iter, BIT_LENGTH_PER_SLOT, id_);
+                return this->init_lshift(casted_estimator, casted_read_iter, casted_write_iter, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, id_);
 
             }
 
@@ -6204,7 +7258,7 @@ namespace bignum::vector::immutable_operation{
                 auto casted_write_iter = write_iter->to_bit_iter_writer_generatable_sp(write_iter);
                 auto casted_length_retriever = bit_length_retriever->to_bit_length_retrievable_sp(bit_length_retriever);
 
-                return this->init_r_shift(casted_estimator, casted_read_iter, casted_write_iter, casted_length_retriever, BIT_LENGTH_PER_SLOT, id_);
+                return this->init_r_shift(casted_estimator, casted_read_iter, casted_write_iter, casted_length_retriever, BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT, id_);
 
             }
 
@@ -6219,27 +7273,17 @@ namespace bignum::vector::immutable_operation{
 
             }
 
-            template <class ID>
-            auto get_strict_mul_192(ID id_){
-                
-                auto two_word_mul = this->get_mul_uint128(DoubleID<ID, 0>());
-                auto estimator = operation_utility::IDOperationUtilityGenerator().get_multiply_estimator(DoubleID<ID, 1>());
-                auto casted_estimator = estimator->to_estimatable_sp(estimator); 
-                auto casted_two_word_mul = two_word_mul->to_operatable_sp(two_word_mul);
-                __uint128_t val = 0; 
-
-                return this->init_three_word_mul(casted_estimator, casted_two_word_mul, val, id_);
-
-            }
-
             template <class T, class ID>
-            auto get_mul_std(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator, ID id_){
+            auto get_slow_mul_std(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator, ID id_){
+
+                constexpr size_t MAX_DOUBLE_WIDTH = 5;
 
                 auto splitter = operation_utility::IDOperationUtilityGenerator().get_zero_default_splitter(DoubleID<ID, 0>());
                 auto plus_ops = this->get_plus(DoubleID<ID, 1>());
                 auto minus_ops = this->get_minus(DoubleID<ID, 2>());
                 auto lshifter = this->get_lshift(DoubleID<ID, 3>());
-                auto mul = this->get_mul_uint128(DoubleID<ID, 4>());
+                //auto mul = this->get_mul_uint128(DoubleID<ID, 4>());
+                auto mul = this->get_generic_mul<__uint128_t, decltype(DoubleID<ID, 4>()), MAX_DOUBLE_WIDTH>();
                 auto temp_gen = memory::sizet_linear::IDGenerator().get_temp_gen_realloc_vector_generator(allocator, DoubleID<ID, 5>());
                 auto estimator = operation_utility::IDOperationUtilityGenerator().get_relax_mul_estimator(DoubleID<ID, 6>());
 
@@ -6252,6 +7296,33 @@ namespace bignum::vector::immutable_operation{
                 auto casted_estimator = estimator->to_estimatable_sp(estimator);
 
                 return this->init_karatsuba(casted_splitter, casted_plus_ops, casted_minus_ops, casted_lshifter, casted_mul, casted_temp_gen, allocator, casted_estimator, id_);
+
+            }
+
+            template <class T, class ID>
+            auto get_mul_std(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator, ID id_){
+
+                constexpr size_t MAX_DOUBLE_WIDTH = 5;
+
+                auto splitter = operation_utility::IDOperationUtilityGenerator().get_zero_default_splitter(DoubleID<ID, 0>());
+                auto plus_ops = this->get_plus(DoubleID<ID, 1>());
+                auto minus_ops = this->get_minus(DoubleID<ID, 2>());
+                auto mutable_plus_ops = mutable_operation::IDArithmeticOperatorGenerator().get_plus(DoubleID<ID, 3>());
+                auto mul = this->get_generic_mul<__uint128_t, decltype(DoubleID<ID, 4>()), MAX_DOUBLE_WIDTH>();
+                auto temp_gen = memory::sizet_linear::IDGenerator().get_temp_gen_realloc_vector_generator(allocator, DoubleID<ID, 5>());
+                auto estimator = operation_utility::IDOperationUtilityGenerator().get_multiply_estimator(DoubleID<ID, 6>());
+                auto offset_vec_gen = memory::sizet_linear::IDGenerator().get_non_extensible_reallocatable_vector_generator(DoubleID<ID, 7>()); 
+
+                auto casted_splitter = splitter->to_view_splittable_sp(splitter);
+                auto casted_plus_ops = plus_ops->to_operatable_sp(plus_ops);
+                auto casted_minus_ops = minus_ops->to_operatable_sp(minus_ops);
+                auto casted_mutable_plus_ops = mutable_plus_ops->to_operatable_sp(mutable_plus_ops);
+                auto casted_mul = mul->to_operatable_sp(mul);
+                auto casted_temp_gen = temp_gen->to_reallocatable_vector_generatable_sp(temp_gen);
+                auto casted_estimator = estimator->to_estimatable_sp(estimator);
+                auto casted_offset_vec_gen = offset_vec_gen->to_offset_reallocatable_vector_generatable(offset_vec_gen);
+
+                return this->init_fast_karatsuba(casted_splitter, casted_plus_ops, casted_minus_ops, casted_mutable_plus_ops, casted_mul, casted_temp_gen, allocator, casted_estimator, casted_offset_vec_gen, id_);
 
             }
 
@@ -6290,13 +7361,13 @@ namespace bignum::vector::immutable_operation{
 
             }
 
-            template <class T, class ID>
-            auto get_slow_std_divide(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator, ID id_){
+            template <class T, class T1, class ID>
+            auto get_slow_std_divide(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator,
+                                     std::shared_ptr<InPlaceOperatable<T1>> in_place_mul,
+                                     ID id_){
                 
                 auto minus_ops = mutable_operation::IDArithmeticOperatorGenerator().get_minus(DoubleID<ID, 0>());
                 auto plus_est = operation_utility::IDOperationUtilityGenerator().get_plus_estimator_v2(DoubleID<ID, 9>());
-                auto mul_ops = this->get_strict_mul_192(DoubleID<ID, 1>());
-                //auto mul_ops = this->get_mul_std(allocator, DoubleID<ID, 1>());
                 auto comparer = comparer::StandardComparerGenerator().get_backward_comparer(DoubleID<ID, 2>());
                 auto temp_gen = memory::sizet_linear::IDGenerator().get_temp_gen_realloc_vector_generator(allocator, DoubleID<ID, 3>());
                 auto base_div_ops = this->get_base_case_div(DoubleID<ID, 4>());
@@ -6310,7 +7381,6 @@ namespace bignum::vector::immutable_operation{
 
                 auto casted_minus = minus_ops->to_operatable_sp(minus_ops);
                 auto casted_plus_est = plus_est->to_estimatable_sp(plus_est);
-                auto casted_mul = mul_ops->to_operatable_sp(mul_ops);
                 auto casted_cmp = comparer->to_comparable_sp(comparer);
                 auto casted_temp_gen = temp_gen->to_reallocatable_vector_generatable_sp(temp_gen);
                 auto casted_base_div_ops = base_div_ops->to_divisible_sp(base_div_ops);
@@ -6322,7 +7392,7 @@ namespace bignum::vector::immutable_operation{
                 auto casted_splitter =  splitter->to_view_splittable_sp(splitter);
                 auto casted_view_trimmer = view_trimmer->to_vector_view_trimmable_sp(view_trimmer);
 
-                return this->init_std_div(casted_minus, casted_plus_est, casted_mul, casted_cmp, casted_temp_gen, casted_base_div_ops, casted_plus_ops, 
+                return this->init_std_div(casted_minus, casted_plus_est, in_place_mul, casted_cmp, casted_temp_gen, casted_base_div_ops, casted_plus_ops, 
                                           casted_immutable_plus_ops, casted_mul_est, casted_div_est, casted_offset_vec_gen, allocator, casted_splitter, 
                                           casted_view_trimmer, id_);
 
@@ -6331,15 +7401,27 @@ namespace bignum::vector::immutable_operation{
             template <class T, class ID>
             auto get_divide(std::shared_ptr<memory::sizet_linear::TempStorageGeneratable<T>> allocator, ID id_){
                 
-                auto base_case_div = this->get_slow_std_divide(allocator, DoubleID<ID, 0>());
-                auto div_est = operation_utility::IDOperationUtilityGenerator().get_divide_estimator(DoubleID<ID, 1>());
-                auto comparer = comparer::StandardComparerGenerator().get_backward_comparer(DoubleID<ID, 2>());
-                auto temp_gen = memory::sizet_linear::IDGenerator().get_temp_gen_realloc_vector_generator(allocator, DoubleID<ID, 3>());
-                auto splitter = operation_utility::IDOperationUtilityGenerator().get_raw_splitter(DoubleID<ID, 4>());
-                auto offset_vec_gen = memory::sizet_linear::IDGenerator().get_non_extensible_reallocatable_vector_generator(DoubleID<ID, 5>());
-                auto plus_ops = mutable_operation::IDArithmeticOperatorGenerator().get_plus(DoubleID<ID, 6>());
+                constexpr size_t DEFAULT_DOUBLE_WIDTH = 2;
+                constexpr size_t MAX_DOUBLE_WIDTH = 5; 
+
+                auto three_limb_mul_ops = this->get_inplace_append_generic_mul<__uint128_t, decltype(DoubleID<ID, 0>()), DEFAULT_DOUBLE_WIDTH>();
+                auto casted_three_limb_mul_ops = three_limb_mul_ops->to_inplace_operatable_sp(three_limb_mul_ops);
+
+                auto skip_limb_mul_ops = this->get_inplace_append_generic_mul<__uint128_t, decltype(DoubleID<ID, 1>()), MAX_DOUBLE_WIDTH>();
+                auto casted_skip_limb_mul_ops = skip_limb_mul_ops->to_inplace_operatable_sp(skip_limb_mul_ops);
+
+                auto base_case_div = this->get_slow_std_divide(allocator, casted_three_limb_mul_ops, DoubleID<ID, 2>());
+                auto skip_div = this->get_slow_std_divide(allocator, casted_skip_limb_mul_ops, DoubleID<ID, 3>());
+
+                auto div_est = operation_utility::IDOperationUtilityGenerator().get_divide_estimator(DoubleID<ID, 4>());
+                auto comparer = comparer::StandardComparerGenerator().get_backward_comparer(DoubleID<ID, 5>());
+                auto temp_gen = memory::sizet_linear::IDGenerator().get_temp_gen_realloc_vector_generator(allocator, DoubleID<ID, 6>());
+                auto splitter = operation_utility::IDOperationUtilityGenerator().get_raw_splitter(DoubleID<ID, 7>());
+                auto offset_vec_gen = memory::sizet_linear::IDGenerator().get_non_extensible_reallocatable_vector_generator(DoubleID<ID, 8>());
+                auto plus_ops = mutable_operation::IDArithmeticOperatorGenerator().get_plus(DoubleID<ID, 9>());
 
                 auto casted_base_case_div = base_case_div->to_divisible_sp(base_case_div);
+                auto casted_skip_div = skip_div->to_divisible_sp(skip_div);
                 auto casted_div_est = div_est->to_estimatable_sp(div_est);
                 auto casted_cmp = comparer->to_comparable_sp(comparer);
                 auto casted_temp_gen = temp_gen->to_reallocatable_vector_generatable_sp(temp_gen);
@@ -6347,7 +7429,7 @@ namespace bignum::vector::immutable_operation{
                 auto casted_offset_vec_gen = offset_vec_gen->to_offset_reallocatable_vector_generatable(offset_vec_gen);
                 auto casted_plus_ops = plus_ops->to_operatable_sp(plus_ops);
 
-                return this->init_std_long_div(casted_base_case_div, casted_div_est, casted_cmp, allocator, casted_temp_gen, casted_splitter, casted_offset_vec_gen, casted_plus_ops, id_);
+                return this->init_std_long_div(casted_base_case_div, casted_skip_div, casted_div_est, casted_cmp, allocator, casted_temp_gen, casted_splitter, casted_offset_vec_gen, casted_plus_ops, id_);
 
 
             }
@@ -6802,25 +7884,25 @@ namespace bignum::integer::usgn::backward_caster{
 
             FastUINTCaster(){
 
-                assert(vector::ACTUAL_BIT_LENGTH_PER_SLOT / vector::BIT_LENGTH_PER_SLOT == 1);
+                assert(BIGNUM_VECTOR_ACTUAL_LENGTH_PER_SLOT / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT == 1);
 
             }
 
             template <class T>
             void cast(size_t data, memory::sizet_linear::ReallocatableOperatableVector<T>& rs){
 
-                if (data > vector::MAX_VAL_PER_SLOT){
+                if (data > BIGNUM_VECTOR_MAX_VAL_PER_SLOT){
 
                     rs.resize_no_copy(2);
-                    rs.set(0, data & vector::MAX_VAL_PER_SLOT);
-                    rs.set(1, data >> vector::BIT_LENGTH_PER_SLOT);
+                    rs.set(0, data & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
+                    rs.set(1, data >> BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT);
 
                     return;
 
                 } 
 
                 rs.resize_no_copy(1);
-                rs.set(0, data & vector::MAX_VAL_PER_SLOT);
+                rs.set(0, data & BIGNUM_VECTOR_MAX_VAL_PER_SLOT);
 
 
             }
@@ -6890,9 +7972,11 @@ namespace bignum::integer::usgn::backward_caster{
             template <class ID>
             auto get_uint_caster(ID id_){
 
+                #if defined(BIGNUM_TEST)
+                return this->get_generic_uint_caster(id_);
+                #else 
                 return std::make_shared<FastUINTCaster<ID>>();
-
-                //return this->get_generic_uint_caster(id_);
+                #endif
 
             }
     };
@@ -6913,7 +7997,7 @@ namespace bignum::integer::usgn::caster{
 
                 for (intmax_t i = (intmax_t) val.length() - 1; i >= 0; --i){
 
-                    rs = (rs << bignum::vector::BIT_LENGTH_PER_SLOT) | val.get(i);
+                    rs = (rs << BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT) | val.get(i);
 
                 }
 
@@ -7164,9 +8248,9 @@ namespace bignum::integer::usgn::operation_utility{
                 auto casted = bit_length_retriever->to_bit_length_retrievable_sp(bit_length_retriever);
                 size_t max_bit_length = 0;
 
-                if (vector::BIT_LENGTH_PER_SLOT > MIN_READ){
+                if (BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT > MIN_READ){
 
-                    max_bit_length = vector::BIT_LENGTH_PER_SLOT - MIN_READ; 
+                    max_bit_length = BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT - MIN_READ; 
 
                 }
 
@@ -7211,9 +8295,9 @@ namespace bignum::integer::usgn::operation_utility{
                 auto casted = bit_length_retriever->to_bit_length_retrievable_sp(bit_length_retriever);
                 size_t max_bit_length = 0;
 
-                if (vector::BIT_LENGTH_PER_SLOT > MIN_READ){
+                if (BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT > MIN_READ){
 
-                    max_bit_length = vector::BIT_LENGTH_PER_SLOT - MIN_READ; 
+                    max_bit_length = BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT - MIN_READ; 
 
                 }
 
@@ -7438,7 +8522,7 @@ namespace bignum::integer::usgn::immutable_operation{
 
                 size_t lhs_bit_length = T3::get_bit_length(lhs);
                 uint8_t mod_bit_length = algorithm::log2::log2_64(rhs) + 1;
-                uint8_t read_length = vector::BIT_LENGTH_PER_SLOT - mod_bit_length;
+                uint8_t read_length = BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT - mod_bit_length;
                 uint8_t trailing_length = lhs_bit_length % read_length; 
                 size_t cur_read = 0;
                 size_t rs = 0;
@@ -8775,13 +9859,13 @@ namespace bignum::integer::usgn::parser{
 
                 size_t total_length = data.length() * bit_width;
 
-                if (total_length % vector::BIT_LENGTH_PER_SLOT == 0){
+                if (total_length % BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT == 0){
 
-                    return total_length / vector::BIT_LENGTH_PER_SLOT;
+                    return total_length / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT;
 
                 }
 
-                return total_length / vector::BIT_LENGTH_PER_SLOT + 1;
+                return total_length / BIGNUM_VECTOR_VIRTUAL_LENGTH_PER_SLOT + 1;
 
             }
 

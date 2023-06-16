@@ -537,6 +537,20 @@ namespace memory{
         };
 
         template<class T>
+        class OperatableVectorSplittable{
+
+            public:
+
+                template <class T1>
+                auto split(OperatableVector<T1>& data, size_t n){ // -> std::pair<VectorReadable&, VectorReadable&> 
+
+                    return static_cast<T*>(this)->split(data, n);
+
+                }
+
+        };
+
+        template<class T>
         class DynamicBitIterable{
             
             public:
@@ -1569,6 +1583,53 @@ namespace memory::sizet_linear{
 
     };
 
+    template <class T>
+    class SwallowOffsetVectorView: public VectorReadable<SwallowOffsetVectorView<T>>,
+                             private T{
+        
+        private:
+
+            size_t offset; 
+            size_t sz;
+
+        public:
+
+            using Interface = VectorReadable<SwallowOffsetVectorView<T>>;
+            using Base = T;
+
+            using Interface::to_vector_readable;
+            using Interface::sizeof_slot;
+            using Base::get_data;
+
+            SwallowOffsetVectorView(){
+
+                this->offset = 0;
+                this->sz = 0;
+
+            }
+
+            SwallowOffsetVectorView(VectorReadable<T>& data, size_t offset, size_t sz): T(static_cast<T&>(data)){
+
+                this->offset = offset;
+                this->sz = sz;
+
+            }
+
+            size_t length(){
+
+                return this->sz;
+
+            }
+
+            size_t get(size_t idx){
+
+                return T::get(idx + this->offset); 
+
+            }
+
+
+    };
+
     template<class T>
     class StandardOffsetVectorView: public VectorReadable<StandardOffsetVectorView<T>>{
 
@@ -2060,6 +2121,8 @@ namespace memory::sizet_linear{
             using Interface::to_vector_readable;
             using Interface::to_operatable_vector;
 
+            NonExtensibleReallocatableVector() {}
+
             NonExtensibleReallocatableVector(size_t * data, size_t length): Base(data, length){};
 
             void resize(size_t sz){
@@ -2316,6 +2379,12 @@ namespace memory::sizet_linear{
             memory::linear::Reallocatable<T> * allocator;
 
         public:
+            
+            CustomAllocatorReallocatableVector(){
+
+                this->allocator = nullptr;
+                
+            }
 
             CustomAllocatorReallocatableVector(memory::linear::Reallocatable<T> * allocator): StandardVectorOperator(nullptr, 0){
                 
@@ -2371,6 +2440,59 @@ namespace memory::sizet_linear{
     };
 
     template <class ID>
+    class SafeVectorReadableSplitter: public VectorReadableSplittable<SafeVectorReadableSplitter<ID>>{
+
+        public:
+
+            template <class T>
+            struct SplittedPair{
+
+                SwallowOffsetVectorView<T> first;
+                SwallowOffsetVectorView<T> second;
+
+            };
+
+            template <class T>
+            SplittedPair<T> make_pair(SwallowOffsetVectorView<T> first, SwallowOffsetVectorView<T> second){
+
+                SplittedPair<T> rs;
+
+                rs.first = first;
+                rs.second = second;
+
+                return rs;
+
+            }
+
+            template <class T>
+            SplittedPair<T> split(VectorReadable<T>& data, size_t split_point){
+
+                size_t first_length = 0;
+                size_t second_length = 0;
+
+                this->get_length(data, split_point, first_length, second_length);
+
+                auto rs = make_pair(SwallowOffsetVectorView<T>(data, 0, first_length),
+                                    SwallowOffsetVectorView<T>(data, first_length, second_length));
+                
+                return rs;
+
+            }
+
+        private:
+
+            template <class T>
+            void get_length(VectorReadable<T>& data, size_t split_point, size_t& first_length, size_t& second_length){
+                
+                first_length = std::min(split_point, data.length());
+                second_length = data.length() - first_length;
+
+            }
+
+
+    };
+
+    template <class ID>
     class VectorReadableSplitter: public VectorReadableSplittable<VectorReadableSplitter<ID>>{
 
         public:
@@ -2403,6 +2525,56 @@ namespace memory::sizet_linear{
 
                 auto rs = make_pair(StandardVectorView((size_t *) data.get_data(), first_length),
                                     StandardVectorView((size_t *) data.get_data() + first_length, second_length));
+                
+                return rs;
+
+            }
+
+        private:
+
+            template <class T>
+            void get_length(VectorReadable<T>& data, size_t split_point, size_t& first_length, size_t& second_length){
+                
+                first_length = std::min(split_point, data.length());
+                second_length = data.length() - first_length;
+
+            }
+
+    };
+
+    template <class ID>
+    class OperatableVectorSplitter: public OperatableVectorSplittable<OperatableVectorSplitter<ID>>{
+
+        public:
+
+            struct SplittedPair{
+
+                StandardVectorOperator first;
+                StandardVectorOperator second;
+
+            };
+
+            SplittedPair make_pair(StandardVectorOperator first, StandardVectorOperator second){
+
+                SplittedPair rs;
+
+                rs.first = first;
+                rs.second = second;
+
+                return rs;
+
+            }
+
+            template <class T>
+            SplittedPair split(OperatableVector<T>& data, size_t split_point){
+
+                size_t first_length = 0;
+                size_t second_length = 0;
+
+                this->get_length(data, split_point, first_length, second_length);
+
+                auto rs = make_pair(StandardVectorOperator((size_t *) data.get_data(), first_length),
+                                    StandardVectorOperator((size_t *) data.get_data() + first_length, second_length));
                 
                 return rs;
 
